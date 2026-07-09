@@ -1,28 +1,26 @@
 # UFC Predictor
 
-Leakage-safe UFC fight winner prediction pipeline built for reproducible MMA analytics.
+[![tests](https://github.com/Fink692/ufc-predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/Fink692/ufc-predictor/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-This project trains winner models from historical UFCStats-style fight data using only information available before each bout. It includes public-data ingestion, rolling feature generation, model training, chronological evaluation, and upcoming-card scoring.
+Leakage-safe UFC fight winner modeling, odds comparison, and report generation for reproducible MMA analytics.
+
+The project trains on historical UFCStats-style data using only information that would have been available before each bout. It builds rolling fighter profiles, evaluates models chronologically, scores upcoming fights, compares model probabilities to sportsbook moneylines, and exports professional CSV, Markdown, and Excel reports.
 
 > Analytics only. This is not betting advice.
 
-## Highlights
+## What It Does
 
-- Public UFCStats mirror ingestion from [`Greco1899/scrape_ufc_stats`](https://github.com/Greco1899/scrape_ufc_stats)
-- Rolling pre-fight features to avoid future-data leakage
-- Age, reach, stance, layoffs, Elo, recent form, opponent strength, grappling, striking, control, and stamina/fade features
-- Late-round stamina features from round 3+ and championship-round performance
-- Order-balanced training so the model does not simply learn UFCStats fighter ordering
-- Sportsbook line ranking by expected value, edge, conservative Kelly sizing, and risk labels
-- Optional live MMA odds ingestion from The Odds API
-- One-command betting report generation with value-board, per-fight confidence-stake, Markdown, and Excel workbook outputs
-- Excel backtest workbook with tables, charts, and fight-level holdout rows
-- Chronological holdout reporting with accuracy, log loss, Brier score, ROC AUC, and baselines
-- CLI-first workflow that can be rerun from raw public data
+- Builds pre-fight features for age, reach, stance, layoffs, Elo, opponent strength, recent form, striking, grappling, control, stamina, late-round fade, and championship-round history.
+- Trains an order-balanced model so results are not inflated by fighter ordering artifacts.
+- Scores upcoming fights with calibrated probabilities, picks, confidence, and model-implied fair odds.
+- Ranks sportsbook lines by implied probability, model edge, expected ROI, conservative Kelly sizing, payout, loss exposure, and risk label.
+- Produces shareable betting and backtest workbooks with tables, charts, and fight-level rows.
 
-## Current Large-Data Benchmark
+## Benchmark Snapshot
 
-Using the public UFCStats mirror available during the latest local run:
+Latest local run using the public UFCStats mirror from [`Greco1899/scrape_ufc_stats`](https://github.com/Greco1899/scrape_ufc_stats):
 
 | Item | Value |
 | --- | ---: |
@@ -31,163 +29,87 @@ Using the public UFCStats mirror available during the latest local run:
 | Date range | 1994-03-11 to 2026-05-16 |
 | Model features | 148 |
 | Stamina/fade features | 39 |
-| Holdout split | latest chronological 20% |
+| Holdout split | Latest chronological 20% |
 | Holdout rows | 1,709 |
 
 | Metric | Model | Baseline |
 | --- | ---: | ---: |
-| Accuracy | 63.55% | 55.71% 50/50/fighter-A baseline |
-| Log loss | 0.6441 | 0.6931 50/50 baseline |
-| ROC AUC | 0.6695 | 0.5000 50/50 baseline |
+| Accuracy | 63.55% | 55.71% |
+| Log loss | 0.6441 | 0.6931 |
+| ROC AUC | 0.6695 | 0.5000 |
 
-The latest generated local report is written to `reports/large_training_summary.json`, which is ignored by git because it is reproducible output.
+The benchmark report is reproducible from the raw public data. Generated runtime outputs under `reports/`, `models/`, and `data/` are intentionally ignored by git.
 
-## Install
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e .
-```
-
-For development:
-
-```powershell
-python -m pip install -e ".[dev]"
-```
-
-## Reproduce The Pipeline
-
-Run from the repository root:
-
-```powershell
-python -m ufc_predictor.cli download-ufcstats --output-raw-dir data/raw
-python -m ufc_predictor.cli build-features --raw-dir data/raw --output data/processed/features.csv
-python -m ufc_predictor.cli train --features data/processed/features.csv --model-path models/ufc_model.joblib --report reports/train_metrics.json
-```
-
-To score upcoming fights after a model is trained:
-
-```powershell
-python -m ufc_predictor.cli predict --raw-dir data/raw --model-path models/ufc_model.joblib --input data/upcoming_fights.csv --output reports/predictions.csv
-```
-
-To rank sportsbook odds after predictions are generated:
-
-```powershell
-python -m ufc_predictor.cli rank-odds --predictions reports/predictions.csv --odds-board data/odds_board.csv --output reports/value_bets.csv --bankroll 1000
-```
-
-To generate the complete betting report from upcoming fights and an odds board:
-
-```powershell
-python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --workbook-output reports/betting_report.xlsx --bankroll 1000 --max-confidence-stake 100
-```
-
-Or fetch live MMA odds and generate every report artifact in one command:
-
-```powershell
-$env:THE_ODDS_API_KEY='your_api_key'
-python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --workbook-output reports/betting_report.xlsx --bankroll 1000 --max-confidence-stake 100
-```
-
-To generate the historical holdout workbook with tables and charts:
-
-```powershell
-python -m ufc_predictor.cli backtest-workbook --features data/processed/features.csv --output reports/ufc_backtest_tables_charts.xlsx --rows-output reports/ufc_holdout_backtest_rows.csv
-```
-
-After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cli`.
-
-## Published Example Artifacts
+## Example Artifacts
 
 - [Backtest workbook](docs/artifacts/ufc_backtest_tables_charts.xlsx)
 - [Fight-level backtest rows](docs/artifacts/ufc_holdout_backtest_rows.csv)
 - [Example betting workbook](docs/artifacts/ufc_betting_report_example.xlsx)
 
-The backtest workbook uses the chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include full historical sportsbook closing odds. The example betting workbook uses fixture odds so the report format can be reviewed without requiring a live odds API key.
+The backtest workbook uses a chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include a complete historical sportsbook closing-line dataset. The betting workbook uses fixture odds so the report format can be reviewed without a live odds API key.
 
-## Upcoming Fight Input
+## Workflow
 
-`data/upcoming_fights.csv`
-
-```csv
-event_date,fighter_a,fighter_b,weight_class,gender,scheduled_rounds,title_fight
-2026-06-01,Fighter One,Fighter Two,Welterweight,M,5,true
+```mermaid
+flowchart LR
+    A["UFCStats-style raw data"] --> B["Rolling pre-fight features"]
+    B --> C["Chronological model training"]
+    C --> D["Upcoming fight probabilities"]
+    D --> E["Sportsbook odds comparison"]
+    E --> F["CSV, Markdown, and Excel reports"]
+    C --> G["Holdout backtest workbook"]
 ```
 
-Fighter names are matched after normalization against `fighters.csv`.
+## Quick Start
 
-## Odds Board Input
-
-`data/odds_board.csv`
-
-```csv
-event_date,fighter_a,fighter_b,sportsbook,fighter,american_odds
-2026-06-01,Fighter One,Fighter Two,Book A,Fighter One,-125
-2026-06-01,Fighter One,Fighter Two,Book B,Fighter One,+105
-2026-06-01,Fighter One,Fighter Two,Book A,Fighter Two,+115
-```
-
-The `rank-odds` command compares each sportsbook line against the model probability and outputs implied probability, model edge, expected return, conservative Kelly stake sizing, potential profit, max loss, risk label, and bet/pass decision.
-
-The default stake sizing uses quarter Kelly capped at 2% of bankroll. This is intentionally conservative and still does not make any bet safe.
-
-The `betting-report` command also writes `reports/fight_recommendations.csv`, and can write `reports/betting_report.xlsx` with `--workbook-output`. This is the quick per-fight view: our predicted winner, model win probability, adjusted confidence, best available odds for that pick, confidence-sized stake, profit if correct, expected profit, and whether the line is positive or negative expected value.
-
-Confidence stake sizing maps a coin-flip pick to `$0` and a 100% confident pick to `--max-confidence-stake`, which defaults to `$100`:
-
-```text
-confidence = (predicted_win_probability - 0.50) * 2
-confidence_stake = confidence * max_confidence_stake
-```
-
-For example, a 58% model pick becomes 16% adjusted confidence, so the confidence stake is `$16` when the max stake is `$100`.
-
-## Live Odds Fetching
-
-The project can optionally fetch current MMA fight-winner odds from [The Odds API](https://the-odds-api.com/sports/mma-ufc-odds.html). Set an API key and write an odds board:
+Install the package in editable mode, then use `ufc-predict --help` to inspect the available commands.
 
 ```powershell
-$env:THE_ODDS_API_KEY='your_api_key'
-python -m ufc_predictor.cli fetch-odds --output data/odds_board.csv --regions us --include-links
+python -m pip install -e ".[dev]"
+ufc-predict --help
 ```
 
-The fetcher uses sport key `mma_mixed_martial_arts`, market `h2h`, and American odds so the output is ready for `rank-odds` or `betting-report`. If you prefer specific books, use `--bookmakers draftkings,fanduel` instead of `--regions us`.
+For the complete training, prediction, odds, and workbook workflow, see [Workflow Guide](docs/WORKFLOW.md).
 
-The `betting-report --fetch-live-odds` option runs that fetch step automatically and saves the fetched board to `--odds-board` before creating reports.
+## Inputs
 
-## Raw Table Schema
+Core historical tables:
 
-The core pipeline reads these CSVs from `data/raw/`:
+| File | Purpose |
+| --- | --- |
+| `events.csv` | Event names and dates |
+| `fighters.csv` | Fighter profile data such as date of birth, height, reach, and stance |
+| `fights.csv` | Matchups, results, method, weight class, scheduled rounds, and title-fight flag |
+| `fight_stats.csv` | Per-fighter fight totals plus optional late-round aggregates |
 
-- `events.csv`: event metadata and dates
-- `fighters.csv`: fighter profile data such as DOB, height, reach, stance
-- `fights.csv`: matchup, result, method, weight class, scheduled rounds
-- `fight_stats.csv`: per-fighter fight totals plus optional late-round aggregates
+Upcoming fights use `event_date`, `fighter_a`, `fighter_b`, `weight_class`, `gender`, `scheduled_rounds`, and `title_fight`. Odds boards use one row per sportsbook line with `event_date`, matchup names, sportsbook, fighter, and American odds.
 
-The `download-ufcstats` command converts the public mirror into this schema.
+## Reports
 
-## Tests
+| Output | Description |
+| --- | --- |
+| Predictions | Fight-level probabilities, picks, confidence, and model version |
+| Value board | Every available sportsbook line ranked by edge, expected ROI, stake, payout, and risk |
+| Fight recommendations | One row per fight with the model pick, best available odds, confidence stake, expected profit, and max loss |
+| Betting workbook | Summary, recommendations, value board, best lines, top matchups, raw odds, predictions, and charts |
+| Backtest workbook | Holdout metrics, fight rows, confidence buckets, yearly splits, threshold scenarios, and charts |
 
-```powershell
-$env:PYTHONPATH='src'
-python -m unittest discover -v
-python -m compileall -q src tests
-```
+Confidence stake sizing maps a coin-flip pick to `$0` and a 100% confident pick to the configured max stake. By default, value-bet staking uses quarter Kelly capped at 2% of bankroll.
 
 ## Documentation
 
+- [Workflow Guide](docs/WORKFLOW.md)
 - [Model Card](docs/MODEL_CARD.md)
 - [Data Notes](docs/DATA.md)
 - [Results](docs/RESULTS.md)
 - [Odds And Risk](docs/ODDS.md)
 - [Backtest Workbook](docs/BACKTEST_WORKBOOK.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
 
 ## Caveats
 
-UFC prediction is noisy. Public models often report inflated results because they accidentally include future fight information in historical averages. This project is designed around rolling, pre-fight features, but it still lacks private/contextual signals such as injuries, camp quality, short-notice changes, current betting market movement, and medical information.
+UFC prediction is noisy. Public models often report inflated results because they accidentally include future information in historical aggregates. This project is designed around rolling pre-fight features, but it still does not include private/contextual signals such as injuries, camp quality, short-notice changes, current market movement, and medical information.
 
 ## License
 
