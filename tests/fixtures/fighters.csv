@@ -1,0 +1,7 @@
+fighter_id,fighter_name,fighter_dob,fighter_height_cm,fighter_weight_lbs,fighter_reach_cm,fighter_stance
+f001,Alpha Adams,1991-02-03,180,170,185,Orthodox
+f002,Bruno Blake,1989-06-11,178,170,182,Southpaw
+f003,Carlos Cruz,1994-09-21,175,155,178,Orthodox
+f004,Devon Diaz,1990-12-05,183,185,188,Switch
+f005,Ethan Ellis,1992-04-16,176,155,180,Southpaw
+f006,Felix Fox,1988-08-30,181,185,184,Orthodox

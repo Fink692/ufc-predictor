@@ -1,0 +1,6 @@
+event_id,event_date,event_name,event_city,event_state,event_country
+e001,2023-01-14,UFC Fixture 1,Las Vegas,NV,USA
+e002,2023-03-18,UFC Fixture 2,London,England,UK
+e003,2023-05-20,UFC Fixture 3,Newark,NJ,USA
+e004,2023-07-22,UFC Fixture 4,Salt Lake City,UT,USA
+e005,2023-09-16,UFC Fixture 5,Sydney,NSW,Australia

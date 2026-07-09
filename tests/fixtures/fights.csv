@@ -1,0 +1,14 @@
+fight_id,event_id,fighter_a_id,fighter_b_id,winner_id,weight_class,gender,scheduled_rounds,title_fight,result
+ft001,e001,f001,f002,f001,Welterweight,M,3,false,Decision
+ft002,e001,f003,f004,f004,Middleweight,M,3,false,Submission
+ft003,e001,f005,f006,f005,Lightweight,M,3,false,KO/TKO
+ft004,e002,f001,f003,f001,Welterweight,M,3,false,Decision
+ft005,e002,f002,f005,f005,Lightweight,M,3,false,Submission
+ft006,e002,f004,f006,f004,Middleweight,M,3,false,Decision
+ft007,e003,f001,f005,f005,Welterweight,M,5,true,Decision
+ft008,e003,f002,f003,f002,Welterweight,M,3,false,KO/TKO
+ft009,e003,f004,f005,f004,Middleweight,M,3,false,Decision
+ft010,e004,f001,f004,f001,Middleweight,M,5,false,Submission
+ft011,e004,f002,f006,f006,Welterweight,M,3,false,Decision
+ft012,e004,f003,f005,f005,Lightweight,M,3,false,KO/TKO
+ft013,e005,f001,f002,,Welterweight,M,3,false,No Contest

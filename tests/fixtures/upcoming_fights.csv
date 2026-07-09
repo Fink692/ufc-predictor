@@ -1,0 +1,3 @@
+event_date,fighter_a,fighter_b,weight_class,gender,scheduled_rounds,title_fight
+2023-12-16,Alpha Adams,Ethan Ellis,Welterweight,M,5,true
+2023-12-16,Bruno Blake,Felix Fox,Welterweight,M,3,false
