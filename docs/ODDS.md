@@ -77,10 +77,18 @@ After a model has been trained and an odds board exists, generate predictions, v
 python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
 ```
 
+To fetch live odds first and then generate the same reports:
+
+```powershell
+$env:THE_ODDS_API_KEY='your_api_key'
+python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
+```
+
 The `--output` CSV is the detailed sportsbook-line board. The command also writes a per-fight confidence-stake file to `reports/fight_recommendations.csv` by default. The Markdown file includes both the top value candidates and the fight-by-fight confidence bets.
 
 Useful options:
 
+- `--fetch-live-odds`: fetch The Odds API lines into `--odds-board` before building the reports
 - `--fight-output`: per-fight recommendation CSV path
 - `--max-confidence-stake`: stake used at 100% adjusted confidence, default `100`
 - `--top-n`: number of rows to include in the Markdown sections

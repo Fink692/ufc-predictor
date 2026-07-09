@@ -84,6 +84,13 @@ To generate the complete betting report from upcoming fights and an odds board:
 python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
 ```
 
+Or fetch live MMA odds and generate every report artifact in one command:
+
+```powershell
+$env:THE_ODDS_API_KEY='your_api_key'
+python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
+```
+
 After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cli`.
 
 ## Upcoming Fight Input
@@ -133,6 +140,8 @@ python -m ufc_predictor.cli fetch-odds --output data/odds_board.csv --regions us
 ```
 
 The fetcher uses sport key `mma_mixed_martial_arts`, market `h2h`, and American odds so the output is ready for `rank-odds` or `betting-report`. If you prefer specific books, use `--bookmakers draftkings,fanduel` instead of `--regions us`.
+
+The `betting-report --fetch-live-odds` option runs that fetch step automatically and saves the fetched board to `--odds-board` before creating reports.
 
 ## Raw Table Schema
 

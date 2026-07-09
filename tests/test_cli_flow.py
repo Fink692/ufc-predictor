@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import json
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -129,6 +130,102 @@ class CliFlowTests(unittest.TestCase):
             markdown = betting_report_md.read_text(encoding="utf-8")
             self.assertIn("# UFC Betting Value Report", markdown)
             self.assertIn("# Fight Confidence Bets", markdown)
+
+    def test_betting_report_can_fetch_live_odds_first(self) -> None:
+        live_events = [
+            {
+                "id": "live-1",
+                "commence_time": "2023-12-16T23:00:00Z",
+                "home_team": "Alpha Adams",
+                "away_team": "Ethan Ellis",
+                "bookmakers": [
+                    {
+                        "key": "livebook",
+                        "title": "LiveBook",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "outcomes": [
+                                    {"name": "Alpha Adams", "price": 105},
+                                    {"name": "Ethan Ellis", "price": -115},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "id": "live-2",
+                "commence_time": "2023-12-16T23:30:00Z",
+                "home_team": "Bruno Blake",
+                "away_team": "Felix Fox",
+                "bookmakers": [
+                    {
+                        "key": "livebook",
+                        "title": "LiveBook",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "outcomes": [
+                                    {"name": "Bruno Blake", "price": 130},
+                                    {"name": "Felix Fox", "price": -115},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            features = root / "features.csv"
+            model = root / "models" / "ufc_model.joblib"
+            train_report = root / "reports" / "train_metrics.json"
+            live_odds = root / "data" / "live_odds.csv"
+            predictions = root / "reports" / "predictions.csv"
+            value_bets = root / "reports" / "value_bets.csv"
+            fight_recommendations = root / "reports" / "fight_recommendations.csv"
+            markdown_report = root / "reports" / "betting_report.md"
+
+            main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
+            main(["train", "--features", str(features), "--model-path", str(model), "--report", str(train_report)])
+
+            with patch("ufc_predictor.cli.fetch_odds_api_events", return_value=live_events) as fetch_mock:
+                main(
+                    [
+                        "betting-report",
+                        "--raw-dir",
+                        str(FIXTURES),
+                        "--model-path",
+                        str(model),
+                        "--upcoming",
+                        str(FIXTURES / "upcoming_fights.csv"),
+                        "--fetch-live-odds",
+                        "--api-key",
+                        "test-key",
+                        "--odds-board",
+                        str(live_odds),
+                        "--predictions-output",
+                        str(predictions),
+                        "--output",
+                        str(value_bets),
+                        "--fight-output",
+                        str(fight_recommendations),
+                        "--markdown-output",
+                        str(markdown_report),
+                    ]
+                )
+
+            fetch_mock.assert_called_once()
+            live_odds_output = pd.read_csv(live_odds)
+            self.assertEqual(len(live_odds_output), 4)
+            self.assertEqual(set(live_odds_output["sportsbook"]), {"LiveBook"})
+            self.assertTrue(predictions.exists())
+            self.assertTrue(value_bets.exists())
+            fight_output = pd.read_csv(fight_recommendations)
+            self.assertEqual(len(fight_output), 2)
+            self.assertEqual(set(fight_output["best_sportsbook"]), {"LiveBook"})
+            self.assertIn("# Fight Confidence Bets", markdown_report.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

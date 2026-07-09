@@ -56,17 +56,7 @@ def main(argv: list[str] | None = None) -> None:
 
     fetch_odds = subparsers.add_parser("fetch-odds", help="Fetch current MMA moneyline odds from The Odds API")
     fetch_odds.add_argument("--output", default="data/odds_board.csv", help="CSV path for the rankable odds board")
-    fetch_odds.add_argument("--api-key", default=None, help="The Odds API key; defaults to --api-key-env")
-    fetch_odds.add_argument("--api-key-env", default="THE_ODDS_API_KEY", help="Environment variable containing the API key")
-    fetch_odds.add_argument("--sport-key", default=DEFAULT_MMA_SPORT_KEY, help="The Odds API sport key")
-    fetch_odds.add_argument("--regions", default="us", help="Bookmaker regions when --bookmakers is not set")
-    fetch_odds.add_argument("--bookmakers", default=None, help="Comma-separated bookmaker keys, for example draftkings,fanduel")
-    fetch_odds.add_argument("--markets", default="h2h", help="Comma-separated market keys; h2h is used for fight winner")
-    fetch_odds.add_argument("--commence-time-from", default=None, help="Optional ISO8601 lower event-time bound")
-    fetch_odds.add_argument("--commence-time-to", default=None, help="Optional ISO8601 upper event-time bound")
-    fetch_odds.add_argument("--include-links", action="store_true", help="Request bookmaker and betslip links when available")
-    fetch_odds.add_argument("--include-sids", action="store_true", help="Request bookmaker source IDs when available")
-    fetch_odds.add_argument("--include-bet-limits", action="store_true", help="Request bet limits when available")
+    _add_odds_api_arguments(fetch_odds)
 
     rank_odds = subparsers.add_parser("rank-odds", help="Rank sportsbook lines by model edge and conservative Kelly sizing")
     rank_odds.add_argument("--predictions", default="reports/predictions.csv")
@@ -83,6 +73,7 @@ def main(argv: list[str] | None = None) -> None:
     betting_report.add_argument("--model-path", default="models/ufc_model.joblib", help="Trained model bundle path")
     betting_report.add_argument("--upcoming", default="data/upcoming_fights.csv", help="Upcoming fights CSV")
     betting_report.add_argument("--odds-board", default="data/odds_board.csv", help="Sportsbook odds board CSV")
+    betting_report.add_argument("--fetch-live-odds", action="store_true", help="Fetch live odds into --odds-board before reporting")
     betting_report.add_argument("--predictions-output", default="reports/predictions.csv", help="Prediction CSV output")
     betting_report.add_argument("--output", default="reports/value_bets.csv", help="Ranked value-bet CSV output")
     betting_report.add_argument("--fight-output", default="reports/fight_recommendations.csv", help="Per-fight confidence bet CSV output")
@@ -94,6 +85,7 @@ def main(argv: list[str] | None = None) -> None:
     betting_report.add_argument("--max-bankroll-fraction", type=float, default=0.02, help="Maximum stake as bankroll fraction")
     betting_report.add_argument("--min-edge", type=float, default=0.02, help="Minimum model edge over implied probability")
     betting_report.add_argument("--min-expected-roi", type=float, default=0.0, help="Minimum expected return per dollar")
+    _add_odds_api_arguments(betting_report)
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
@@ -140,6 +132,18 @@ def main(argv: list[str] | None = None) -> None:
             model_path=Path(args.model_path),
             upcoming_path=Path(args.upcoming),
             odds_board_path=Path(args.odds_board),
+            fetch_live_odds=args.fetch_live_odds,
+            api_key=args.api_key,
+            api_key_env=args.api_key_env,
+            sport_key=args.sport_key,
+            regions=args.regions,
+            bookmakers=args.bookmakers,
+            markets=args.markets,
+            commence_time_from=args.commence_time_from,
+            commence_time_to=args.commence_time_to,
+            include_links=args.include_links,
+            include_sids=args.include_sids,
+            include_bet_limits=args.include_bet_limits,
             predictions_output_path=Path(args.predictions_output),
             output_path=Path(args.output),
             fight_output_path=Path(args.fight_output),
@@ -152,6 +156,20 @@ def main(argv: list[str] | None = None) -> None:
             min_edge=args.min_edge,
             min_expected_roi=args.min_expected_roi,
         )
+
+
+def _add_odds_api_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--api-key", default=None, help="The Odds API key; defaults to --api-key-env")
+    parser.add_argument("--api-key-env", default="THE_ODDS_API_KEY", help="Environment variable containing the API key")
+    parser.add_argument("--sport-key", default=DEFAULT_MMA_SPORT_KEY, help="The Odds API sport key")
+    parser.add_argument("--regions", default="us", help="Bookmaker regions when --bookmakers is not set")
+    parser.add_argument("--bookmakers", default=None, help="Comma-separated bookmaker keys, for example draftkings,fanduel")
+    parser.add_argument("--markets", default="h2h", help="Comma-separated market keys; h2h is used for fight winner")
+    parser.add_argument("--commence-time-from", default=None, help="Optional ISO8601 lower event-time bound")
+    parser.add_argument("--commence-time-to", default=None, help="Optional ISO8601 upper event-time bound")
+    parser.add_argument("--include-links", action="store_true", help="Request bookmaker and betslip links when available")
+    parser.add_argument("--include-sids", action="store_true", help="Request bookmaker source IDs when available")
+    parser.add_argument("--include-bet-limits", action="store_true", help="Request bet limits when available")
 
 
 def run_ingest(raw_dir: Path, processed_dir: Path) -> None:
@@ -247,6 +265,36 @@ def run_fetch_odds(
     include_sids: bool,
     include_bet_limits: bool,
 ) -> None:
+    odds_board = fetch_live_odds_board(
+        api_key=api_key,
+        api_key_env=api_key_env,
+        sport_key=sport_key,
+        regions=regions,
+        bookmakers=bookmakers,
+        markets=markets,
+        commence_time_from=commence_time_from,
+        commence_time_to=commence_time_to,
+        include_links=include_links,
+        include_sids=include_sids,
+        include_bet_limits=include_bet_limits,
+    )
+    write_csv(odds_board, output_path)
+    print(f"Wrote {len(odds_board)} odds rows to {output_path}")
+
+
+def fetch_live_odds_board(
+    api_key: str | None,
+    api_key_env: str,
+    sport_key: str,
+    regions: str,
+    bookmakers: str | None,
+    markets: str,
+    commence_time_from: str | None,
+    commence_time_to: str | None,
+    include_links: bool,
+    include_sids: bool,
+    include_bet_limits: bool,
+) -> pd.DataFrame:
     resolved_api_key = api_key or os.environ.get(api_key_env, "")
     events = fetch_odds_api_events(
         api_key=resolved_api_key,
@@ -261,9 +309,7 @@ def run_fetch_odds(
         include_bet_limits=include_bet_limits,
     )
     board_market = markets.split(",", maxsplit=1)[0].strip()
-    odds_board = odds_api_events_to_board(events, market_key=board_market)
-    write_csv(odds_board, output_path)
-    print(f"Wrote {len(odds_board)} odds rows from {len(events)} events to {output_path}")
+    return odds_api_events_to_board(events, market_key=board_market)
 
 
 def run_rank_odds(
@@ -295,6 +341,18 @@ def run_betting_report(
     model_path: Path,
     upcoming_path: Path,
     odds_board_path: Path,
+    fetch_live_odds: bool,
+    api_key: str | None,
+    api_key_env: str,
+    sport_key: str,
+    regions: str,
+    bookmakers: str | None,
+    markets: str,
+    commence_time_from: str | None,
+    commence_time_to: str | None,
+    include_links: bool,
+    include_sids: bool,
+    include_bet_limits: bool,
     predictions_output_path: Path,
     output_path: Path,
     fight_output_path: Path,
@@ -309,9 +367,27 @@ def run_betting_report(
 ) -> None:
     predictions = build_prediction_output(raw_dir, model_path, upcoming_path)
     write_csv(predictions, predictions_output_path)
+    if fetch_live_odds:
+        odds_board = fetch_live_odds_board(
+            api_key=api_key,
+            api_key_env=api_key_env,
+            sport_key=sport_key,
+            regions=regions,
+            bookmakers=bookmakers,
+            markets=markets,
+            commence_time_from=commence_time_from,
+            commence_time_to=commence_time_to,
+            include_links=include_links,
+            include_sids=include_sids,
+            include_bet_limits=include_bet_limits,
+        )
+        write_csv(odds_board, odds_board_path)
+        print(f"Wrote {len(odds_board)} live odds rows to {odds_board_path}")
+    else:
+        odds_board = read_csv(odds_board_path)
     value_bets = rank_value_bets(
         predictions,
-        read_csv(odds_board_path),
+        odds_board,
         bankroll=bankroll,
         kelly_multiplier=kelly_multiplier,
         max_bankroll_fraction=max_bankroll_fraction,
@@ -321,7 +397,7 @@ def run_betting_report(
     write_csv(value_bets, output_path)
     fight_recommendations = build_fight_recommendations(
         predictions,
-        read_csv(odds_board_path),
+        odds_board,
         max_confidence_stake=max_confidence_stake,
     )
     write_csv(fight_recommendations, fight_output_path)
