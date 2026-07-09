@@ -10,7 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ufc_predictor.odds import (
     american_to_implied_probability,
+    build_fight_recommendations,
     expected_profit_per_unit,
+    fight_recommendations_to_markdown,
     kelly_fraction,
     no_vig_probabilities,
     rank_value_bets,
@@ -73,6 +75,36 @@ class OddsTests(unittest.TestCase):
         self.assertIn("Analytics only. This is not betting advice.", report)
         self.assertIn("| Matchup | Fighter | Sportsbook | Odds |", report)
         self.assertIn("Qualifying value candidates:", report)
+
+    def test_build_fight_recommendations_sizes_stake_by_confidence(self) -> None:
+        predictions = pd.read_csv(FIXTURES / "predictions.csv")
+        odds_board = pd.read_csv(FIXTURES / "odds_board.csv")
+
+        recommendations = build_fight_recommendations(predictions, odds_board, max_confidence_stake=100)
+
+        self.assertEqual(len(recommendations), 2)
+        top = recommendations.iloc[0]
+        self.assertEqual(top["predicted_winner"], "Alpha Adams")
+        self.assertEqual(top["best_sportsbook"], "Book B")
+        self.assertEqual(top["best_american_odds"], 105)
+        self.assertAlmostEqual(top["predicted_win_probability"], 0.58)
+        self.assertAlmostEqual(top["confidence"], 0.16)
+        self.assertAlmostEqual(top["confidence_stake"], 16.0)
+        self.assertAlmostEqual(top["profit_if_correct"], 16.8)
+        self.assertIn("Book A -125", top["all_predicted_winner_odds"])
+        self.assertIn("Book B +105", top["all_predicted_winner_odds"])
+
+    def test_fight_recommendations_to_markdown_lists_confidence_bets(self) -> None:
+        predictions = pd.read_csv(FIXTURES / "predictions.csv")
+        odds_board = pd.read_csv(FIXTURES / "odds_board.csv")
+        recommendations = build_fight_recommendations(predictions, odds_board, max_confidence_stake=100)
+
+        report = fight_recommendations_to_markdown(recommendations)
+
+        self.assertIn("# Fight Confidence Bets", report)
+        self.assertIn("0% confidence = $0", report)
+        self.assertIn("Alpha Adams", report)
+        self.assertIn("$16.00", report)
 
 
 if __name__ == "__main__":

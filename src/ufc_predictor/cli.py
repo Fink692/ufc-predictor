@@ -9,7 +9,13 @@ import pandas as pd
 from .features import FeatureBuilder, build_features_from_raw
 from .io import ensure_parent, load_raw_tables, read_csv, write_csv, write_json
 from .models import evaluate_model, load_model, save_model, train_model
-from .odds import add_no_vig_probabilities, rank_value_bets, value_bets_to_markdown
+from .odds import (
+    add_no_vig_probabilities,
+    build_fight_recommendations,
+    fight_recommendations_to_markdown,
+    rank_value_bets,
+    value_bets_to_markdown,
+)
 from .odds_api import DEFAULT_MMA_SPORT_KEY, fetch_odds_api_events, odds_api_events_to_board
 from .evaluation import classification_metrics
 from .ufcstats_source import DEFAULT_MIRROR_BASE_URL, convert_ufcstats_mirror
@@ -79,9 +85,11 @@ def main(argv: list[str] | None = None) -> None:
     betting_report.add_argument("--odds-board", default="data/odds_board.csv", help="Sportsbook odds board CSV")
     betting_report.add_argument("--predictions-output", default="reports/predictions.csv", help="Prediction CSV output")
     betting_report.add_argument("--output", default="reports/value_bets.csv", help="Ranked value-bet CSV output")
+    betting_report.add_argument("--fight-output", default="reports/fight_recommendations.csv", help="Per-fight confidence bet CSV output")
     betting_report.add_argument("--markdown-output", default="reports/betting_report.md", help="Markdown summary output")
     betting_report.add_argument("--top-n", type=int, default=10, help="Number of rows to include in the Markdown summary")
     betting_report.add_argument("--bankroll", type=float, default=1000.0, help="Bankroll used for stake sizing")
+    betting_report.add_argument("--max-confidence-stake", type=float, default=100.0, help="Stake at 100%% confidence")
     betting_report.add_argument("--kelly-multiplier", type=float, default=0.25, help="Fraction of full Kelly to use")
     betting_report.add_argument("--max-bankroll-fraction", type=float, default=0.02, help="Maximum stake as bankroll fraction")
     betting_report.add_argument("--min-edge", type=float, default=0.02, help="Minimum model edge over implied probability")
@@ -134,9 +142,11 @@ def main(argv: list[str] | None = None) -> None:
             odds_board_path=Path(args.odds_board),
             predictions_output_path=Path(args.predictions_output),
             output_path=Path(args.output),
+            fight_output_path=Path(args.fight_output),
             markdown_output_path=Path(args.markdown_output) if args.markdown_output else None,
             top_n=args.top_n,
             bankroll=args.bankroll,
+            max_confidence_stake=args.max_confidence_stake,
             kelly_multiplier=args.kelly_multiplier,
             max_bankroll_fraction=args.max_bankroll_fraction,
             min_edge=args.min_edge,
@@ -215,7 +225,10 @@ def build_prediction_output(raw_dir: Path, model_path: Path, input_path: Path) -
         lambda row: row["fighter_a"] if row["prob_fighter_a"] >= row["prob_fighter_b"] else row["fighter_b"],
         axis=1,
     )
-    output["confidence_bucket"] = output[["prob_fighter_a", "prob_fighter_b"]].max(axis=1).map(_confidence_bucket)
+    output["pick_probability"] = output[["prob_fighter_a", "prob_fighter_b"]].max(axis=1)
+    output["confidence"] = output["pick_probability"].map(_pick_confidence)
+    output["confidence_percent"] = output["confidence"] * 100.0
+    output["confidence_bucket"] = output["pick_probability"].map(_confidence_bucket)
     output["model_version"] = str(bundle.metadata.get("model_type", "unknown"))
     return output
 
@@ -284,9 +297,11 @@ def run_betting_report(
     odds_board_path: Path,
     predictions_output_path: Path,
     output_path: Path,
+    fight_output_path: Path,
     markdown_output_path: Path | None,
     top_n: int,
     bankroll: float,
+    max_confidence_stake: float,
     kelly_multiplier: float,
     max_bankroll_fraction: float,
     min_edge: float,
@@ -304,15 +319,24 @@ def run_betting_report(
         min_expected_roi=min_expected_roi,
     )
     write_csv(value_bets, output_path)
+    fight_recommendations = build_fight_recommendations(
+        predictions,
+        read_csv(odds_board_path),
+        max_confidence_stake=max_confidence_stake,
+    )
+    write_csv(fight_recommendations, fight_output_path)
     if markdown_output_path is not None:
         ensure_parent(markdown_output_path)
         markdown_output_path.write_text(
-            value_bets_to_markdown(value_bets, top_n=top_n, bankroll=bankroll),
+            value_bets_to_markdown(value_bets, top_n=top_n, bankroll=bankroll)
+            + "\n"
+            + fight_recommendations_to_markdown(fight_recommendations, top_n=top_n),
             encoding="utf-8",
         )
     bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
     print(f"Wrote {len(predictions)} predictions to {predictions_output_path}")
     print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
+    print(f"Wrote {len(fight_recommendations)} fight recommendations to {fight_output_path}")
     if markdown_output_path is not None:
         print(f"Wrote betting report to {markdown_output_path}")
 
@@ -323,6 +347,10 @@ def _confidence_bucket(probability: float) -> str:
     if probability >= 0.6:
         return "medium"
     return "low"
+
+
+def _pick_confidence(probability: float) -> float:
+    return max(0.0, min(1.0, (float(probability) - 0.5) * 2.0))
 
 
 def _market_odds_baseline(features: pd.DataFrame, odds: pd.DataFrame) -> dict[str, object]:

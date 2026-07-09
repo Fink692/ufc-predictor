@@ -27,6 +27,7 @@ class CliFlowTests(unittest.TestCase):
             predictions = root / "reports" / "predictions.csv"
             value_bets = root / "reports" / "value_bets.csv"
             betting_report_csv = root / "reports" / "betting_report.csv"
+            fight_recommendations_csv = root / "reports" / "fight_recommendations.csv"
             betting_report_md = root / "reports" / "betting_report.md"
 
             main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
@@ -85,8 +86,12 @@ class CliFlowTests(unittest.TestCase):
                     str(root / "reports" / "report_predictions.csv"),
                     "--output",
                     str(betting_report_csv),
+                    "--fight-output",
+                    str(fight_recommendations_csv),
                     "--markdown-output",
                     str(betting_report_md),
+                    "--max-confidence-stake",
+                    "100",
                     "--bankroll",
                     "1000",
                 ]
@@ -103,6 +108,8 @@ class CliFlowTests(unittest.TestCase):
             output = pd.read_csv(predictions)
             self.assertEqual(len(output), 2)
             self.assertIn("prob_fighter_a", output.columns)
+            self.assertIn("confidence", output.columns)
+            self.assertIn("confidence_percent", output.columns)
             self.assertTrue(output["prob_fighter_a"].between(0, 1).all())
             self.assertTrue(output["prob_fighter_b"].between(0, 1).all())
             odds_output = pd.read_csv(value_bets)
@@ -112,8 +119,16 @@ class CliFlowTests(unittest.TestCase):
             report_output = pd.read_csv(betting_report_csv)
             self.assertEqual(len(report_output), 8)
             self.assertIn("total_payout_if_win", report_output.columns)
+            fight_output = pd.read_csv(fight_recommendations_csv)
+            self.assertEqual(len(fight_output), 2)
+            self.assertIn("confidence_stake", fight_output.columns)
+            self.assertIn("profit_if_correct", fight_output.columns)
+            self.assertTrue(fight_output["confidence_stake"].between(0, 100).all())
+            self.assertTrue(fight_output["profit_if_correct"].ge(0).all())
             self.assertTrue(betting_report_md.exists())
-            self.assertIn("# UFC Betting Value Report", betting_report_md.read_text(encoding="utf-8"))
+            markdown = betting_report_md.read_text(encoding="utf-8")
+            self.assertIn("# UFC Betting Value Report", markdown)
+            self.assertIn("# Fight Confidence Bets", markdown)
 
 
 if __name__ == "__main__":

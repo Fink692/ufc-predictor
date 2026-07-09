@@ -204,6 +204,112 @@ def rank_value_bets(
     return ranked.reset_index(drop=True)
 
 
+def build_fight_recommendations(
+    predictions: pd.DataFrame,
+    odds_board: pd.DataFrame,
+    max_confidence_stake: float = 100.0,
+) -> pd.DataFrame:
+    _validate_columns(predictions, REQUIRED_PREDICTION_COLUMNS, "predictions")
+    _validate_columns(odds_board, REQUIRED_ODDS_BOARD_COLUMNS, "odds board")
+    if max_confidence_stake < 0:
+        raise ValueError("max_confidence_stake cannot be negative.")
+
+    ranked = rank_value_bets(
+        predictions,
+        odds_board,
+        bankroll=max(max_confidence_stake, 1.0),
+        kelly_multiplier=0.0,
+        max_bankroll_fraction=1.0,
+        min_edge=-1.0,
+        min_expected_roi=-10.0,
+    )
+    rows: list[dict[str, object]] = []
+    for prediction in predictions.to_dict("records"):
+        prob_a = float(prediction["prob_fighter_a"])
+        prob_b = float(prediction["prob_fighter_b"])
+        if prob_a >= prob_b:
+            pick = prediction["fighter_a"]
+            opponent = prediction["fighter_b"]
+            pick_side = "fighter_a"
+            pick_probability = prob_a
+            opponent_probability = prob_b
+        else:
+            pick = prediction["fighter_b"]
+            opponent = prediction["fighter_a"]
+            pick_side = "fighter_b"
+            pick_probability = prob_b
+            opponent_probability = prob_a
+
+        confidence = _confidence_from_pick_probability(pick_probability)
+        confidence_stake = max_confidence_stake * confidence
+        matchup_rows = _ranked_matchup_rows(ranked, prediction)
+        pick_rows = matchup_rows[matchup_rows["fighter"].map(normalize_name) == normalize_name(pick)]
+        opponent_rows = matchup_rows[matchup_rows["fighter"].map(normalize_name) == normalize_name(opponent)]
+        best_pick = _best_line(pick_rows)
+        best_opponent = _best_line(opponent_rows)
+
+        if best_pick is None:
+            rows.append(
+                _missing_fight_recommendation(
+                    prediction,
+                    pick,
+                    opponent,
+                    pick_side,
+                    pick_probability,
+                    opponent_probability,
+                    confidence,
+                    confidence_stake,
+                    max_confidence_stake,
+                )
+            )
+            continue
+
+        decimal_odds = float(best_pick["decimal_odds"])
+        expected_roi = expected_profit_per_unit(pick_probability, decimal_odds)
+        potential_profit = confidence_stake * (decimal_odds - 1.0)
+        row = {
+            "event_date": prediction["event_date"],
+            "fighter_a": prediction["fighter_a"],
+            "fighter_b": prediction["fighter_b"],
+            "predicted_winner": pick,
+            "opponent": opponent,
+            "predicted_side": pick_side,
+            "predicted_win_probability": pick_probability,
+            "opponent_win_probability": opponent_probability,
+            "confidence": confidence,
+            "confidence_percent": confidence * 100.0,
+            "max_confidence_stake": max_confidence_stake,
+            "confidence_stake": confidence_stake,
+            "best_sportsbook": best_pick["sportsbook"],
+            "best_american_odds": best_pick["american_odds"],
+            "best_decimal_odds": decimal_odds,
+            "implied_probability": best_pick["implied_probability"],
+            "edge": pick_probability - float(best_pick["implied_probability"]),
+            "expected_roi": expected_roi,
+            "expected_profit": confidence_stake * expected_roi,
+            "profit_if_correct": potential_profit,
+            "total_return_if_correct": confidence_stake * decimal_odds,
+            "max_loss_if_wrong": confidence_stake,
+            "value_flag": "positive_ev" if expected_roi > 0 else "negative_ev",
+            "all_predicted_winner_odds": _format_available_lines(pick_rows),
+            "best_opponent_sportsbook": best_opponent["sportsbook"] if best_opponent is not None else None,
+            "best_opponent_american_odds": best_opponent["american_odds"] if best_opponent is not None else None,
+            "all_opponent_odds": _format_available_lines(opponent_rows),
+        }
+        for column in OPTIONAL_ODDS_CONTEXT_COLUMNS:
+            if column in best_pick:
+                row[column] = best_pick[column]
+        rows.append(row)
+
+    recommendations = pd.DataFrame(rows)
+    if recommendations.empty:
+        return recommendations
+    return recommendations.sort_values(
+        ["confidence", "expected_roi", "edge"],
+        ascending=[False, False, False],
+    ).reset_index(drop=True)
+
+
 def value_bets_to_markdown(value_bets: pd.DataFrame, top_n: int = 10, bankroll: float | None = None) -> str:
     if value_bets.empty:
         return "\n".join(
@@ -288,6 +394,48 @@ def value_bets_to_markdown(value_bets: pd.DataFrame, top_n: int = 10, bankroll: 
     return "\n".join(lines)
 
 
+def fight_recommendations_to_markdown(recommendations: pd.DataFrame, top_n: int | None = None) -> str:
+    if recommendations.empty:
+        return "\n".join(
+            [
+                "# Fight Confidence Bets",
+                "",
+                "No fight recommendations were available.",
+                "",
+            ]
+        )
+    display = recommendations if top_n is None else recommendations.head(top_n)
+    lines = [
+        "# Fight Confidence Bets",
+        "",
+        "Stake sizing maps coin-flip-adjusted model confidence to dollars: 0% confidence = $0, 100% confidence = the configured max stake.",
+        "",
+        "| Fight | Pick | Odds | Win Prob | Confidence | Stake | Profit If Correct | Expected Profit | Value |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for _, row in display.iterrows():
+        fight = f"{row['fighter_a']} vs. {row['fighter_b']}"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _markdown_cell(fight),
+                    _markdown_cell(row["predicted_winner"]),
+                    _format_american(row["best_american_odds"]),
+                    _format_percent(row["predicted_win_probability"]),
+                    _format_percent(row["confidence"]),
+                    _format_money(row["confidence_stake"]),
+                    _format_money(row["profit_if_correct"]),
+                    _format_money(row["expected_profit"]),
+                    _markdown_cell(row["value_flag"]),
+                ]
+            )
+            + " |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _prediction_lookup(predictions: pd.DataFrame) -> dict[tuple[str, str, str], dict[str, object]]:
     lookup: dict[tuple[str, str, str], dict[str, object]] = {}
     for row in predictions.to_dict("records"):
@@ -327,6 +475,73 @@ def _risk_label(
     if model_probability >= 0.52 and decimal_odds <= 3.0:
         return "medium_variance_value"
     return "high_variance_value"
+
+
+def _confidence_from_pick_probability(probability: float) -> float:
+    return max(0.0, min(1.0, (float(probability) - 0.5) * 2.0))
+
+
+def _ranked_matchup_rows(ranked: pd.DataFrame, prediction: dict[str, object]) -> pd.DataFrame:
+    key = _matchup_key(prediction)
+    if ranked.empty:
+        return ranked
+    keys = ranked.apply(lambda row: _matchup_key(row.to_dict()), axis=1)
+    return ranked[keys.map(lambda value: value == key)]
+
+
+def _best_line(rows: pd.DataFrame) -> pd.Series | None:
+    if rows.empty:
+        return None
+    return rows.sort_values(["decimal_odds", "expected_roi"], ascending=[False, False]).iloc[0]
+
+
+def _format_available_lines(rows: pd.DataFrame) -> str:
+    if rows.empty:
+        return ""
+    ordered = rows.sort_values("decimal_odds", ascending=False)
+    return "; ".join(f"{row['sportsbook']} {_format_american(row['american_odds'])}" for _, row in ordered.iterrows())
+
+
+def _missing_fight_recommendation(
+    prediction: dict[str, object],
+    pick: object,
+    opponent: object,
+    pick_side: str,
+    pick_probability: float,
+    opponent_probability: float,
+    confidence: float,
+    confidence_stake: float,
+    max_confidence_stake: float,
+) -> dict[str, object]:
+    return {
+        "event_date": prediction["event_date"],
+        "fighter_a": prediction["fighter_a"],
+        "fighter_b": prediction["fighter_b"],
+        "predicted_winner": pick,
+        "opponent": opponent,
+        "predicted_side": pick_side,
+        "predicted_win_probability": pick_probability,
+        "opponent_win_probability": opponent_probability,
+        "confidence": confidence,
+        "confidence_percent": confidence * 100.0,
+        "max_confidence_stake": max_confidence_stake,
+        "confidence_stake": confidence_stake,
+        "best_sportsbook": None,
+        "best_american_odds": None,
+        "best_decimal_odds": None,
+        "implied_probability": None,
+        "edge": None,
+        "expected_roi": None,
+        "expected_profit": None,
+        "profit_if_correct": None,
+        "total_return_if_correct": None,
+        "max_loss_if_wrong": confidence_stake,
+        "value_flag": "missing_odds",
+        "all_predicted_winner_odds": "",
+        "best_opponent_sportsbook": None,
+        "best_opponent_american_odds": None,
+        "all_opponent_odds": "",
+    }
 
 
 def _format_percent(value: object) -> str:

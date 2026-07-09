@@ -74,14 +74,20 @@ Fighter names and `event_date` still need to line up with the upcoming-fights fi
 After a model has been trained and an odds board exists, generate predictions, value rankings, and a Markdown summary in one command:
 
 ```powershell
-python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --markdown-output reports/betting_report.md --bankroll 1000
+python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
 ```
 
-The CSV is the detailed machine-readable board. The Markdown file is a quick review sheet for the top value candidates.
+The `--output` CSV is the detailed sportsbook-line board. The command also writes a per-fight confidence-stake file to `reports/fight_recommendations.csv` by default. The Markdown file includes both the top value candidates and the fight-by-fight confidence bets.
+
+Useful options:
+
+- `--fight-output`: per-fight recommendation CSV path
+- `--max-confidence-stake`: stake used at 100% adjusted confidence, default `100`
+- `--top-n`: number of rows to include in the Markdown sections
 
 ## Output
 
-Important columns:
+Important value-board columns:
 
 - `model_probability`: model win probability for that fighter
 - `implied_probability`: sportsbook break-even probability
@@ -100,9 +106,33 @@ Important columns:
 - `best_available_for_fighter`: best line found for that fighter across books
 - `best_recommendation_for_matchup`: top risk-adjusted qualifying value candidate for that fight
 
+Important per-fight recommendation columns:
+
+- `predicted_winner`: model pick for the fight
+- `predicted_win_probability`: raw model win probability for that pick
+- `confidence`: coin-flip-adjusted confidence, where 50% win probability is 0 confidence and 100% is 1
+- `confidence_stake`: stake from `confidence * max_confidence_stake`
+- `best_sportsbook`: book with the best available odds for the predicted winner
+- `best_american_odds`: best American odds for the predicted winner
+- `profit_if_correct`: profit from the confidence stake if the pick wins
+- `total_return_if_correct`: stake plus profit if the pick wins
+- `max_loss_if_wrong`: confidence stake
+- `expected_profit`: model expected profit from that stake and line
+- `value_flag`: `positive_ev`, `negative_ev`, or `missing_odds`
+- `all_predicted_winner_odds`: every available line found for the pick
+
 ## Risk Framing
 
 "Best" means best risk-adjusted expected value according to this model and the supplied odds. It does not mean safest, guaranteed, or highest payout. Underdogs can have high expected value but also high variance.
+
+The confidence-stake view is intentionally simple:
+
+```text
+confidence = (predicted_win_probability - 0.50) * 2
+confidence_stake = confidence * max_confidence_stake
+```
+
+That means a 58% model pick becomes 16% adjusted confidence and a `$16` stake when `--max-confidence-stake 100`. This shows what the confidence scaling would do; it does not mean every confidence-sized stake is positive expected value.
 
 The default staking is intentionally conservative:
 
