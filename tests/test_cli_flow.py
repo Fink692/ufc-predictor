@@ -8,6 +8,7 @@ import json
 from unittest.mock import patch
 
 import pandas as pd
+from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -226,6 +227,39 @@ class CliFlowTests(unittest.TestCase):
             self.assertEqual(len(fight_output), 2)
             self.assertEqual(set(fight_output["best_sportsbook"]), {"LiveBook"})
             self.assertIn("# Fight Confidence Bets", markdown_report.read_text(encoding="utf-8"))
+
+    def test_backtest_workbook_command_writes_excel_and_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            features = root / "features.csv"
+            workbook = root / "reports" / "backtest.xlsx"
+            rows = root / "reports" / "backtest_rows.csv"
+
+            main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
+            main(
+                [
+                    "backtest-workbook",
+                    "--features",
+                    str(features),
+                    "--output",
+                    str(workbook),
+                    "--rows-output",
+                    str(rows),
+                    "--max-confidence-stake",
+                    "100",
+                ]
+            )
+
+            self.assertTrue(workbook.exists())
+            self.assertTrue(rows.exists())
+            loaded = load_workbook(workbook, read_only=False, data_only=False)
+            self.assertIn("Summary", loaded.sheetnames)
+            self.assertIn("Fight Backtest", loaded.sheetnames)
+            self.assertIn("Charts", loaded.sheetnames)
+            self.assertGreaterEqual(len(loaded["Charts"]._charts), 1)
+            output_rows = pd.read_csv(rows)
+            self.assertGreater(len(output_rows), 0)
+            self.assertIn("net_profit_even_money_sim", output_rows.columns)
 
 
 if __name__ == "__main__":

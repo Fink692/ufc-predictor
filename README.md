@@ -16,6 +16,7 @@ This project trains winner models from historical UFCStats-style fight data usin
 - Sportsbook line ranking by expected value, edge, conservative Kelly sizing, and risk labels
 - Optional live MMA odds ingestion from The Odds API
 - One-command betting report generation with value-board, per-fight confidence-stake, and Markdown outputs
+- Excel backtest workbook with tables, charts, and fight-level holdout rows
 - Chronological holdout reporting with accuracy, log loss, Brier score, ROC AUC, and baselines
 - CLI-first workflow that can be rerun from raw public data
 
@@ -91,7 +92,20 @@ $env:THE_ODDS_API_KEY='your_api_key'
 python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
 ```
 
+To generate the historical holdout workbook with tables and charts:
+
+```powershell
+python -m ufc_predictor.cli backtest-workbook --features data/processed/features.csv --output reports/ufc_backtest_tables_charts.xlsx --rows-output reports/ufc_holdout_backtest_rows.csv
+```
+
 After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cli`.
+
+## Published Example Artifacts
+
+- [Backtest workbook](docs/artifacts/ufc_backtest_tables_charts.xlsx)
+- [Fight-level backtest rows](docs/artifacts/ufc_holdout_backtest_rows.csv)
+
+The workbook uses the chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include full historical sportsbook closing odds.
 
 ## Upcoming Fight Input
 
@@ -168,6 +182,7 @@ python -m compileall -q src tests
 - [Data Notes](docs/DATA.md)
 - [Results](docs/RESULTS.md)
 - [Odds And Risk](docs/ODDS.md)
+- [Backtest Workbook](docs/BACKTEST_WORKBOOK.md)
 
 ## Caveats
 

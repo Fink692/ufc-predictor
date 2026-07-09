@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .backtest_workbook import generate_backtest_workbook
 from .features import FeatureBuilder, build_features_from_raw
 from .io import ensure_parent, load_raw_tables, read_csv, write_csv, write_json
 from .models import evaluate_model, load_model, save_model, train_model
@@ -87,6 +88,14 @@ def main(argv: list[str] | None = None) -> None:
     betting_report.add_argument("--min-expected-roi", type=float, default=0.0, help="Minimum expected return per dollar")
     _add_odds_api_arguments(betting_report)
 
+    workbook = subparsers.add_parser("backtest-workbook", help="Generate an Excel holdout backtest workbook with tables and charts")
+    workbook.add_argument("--features", default="data/processed/features.csv", help="Training feature table")
+    workbook.add_argument("--output", default="reports/ufc_backtest_tables_charts.xlsx", help="Excel workbook output path")
+    workbook.add_argument("--rows-output", default="reports/ufc_holdout_backtest_rows.csv", help="Optional fight-level CSV output")
+    workbook.add_argument("--max-confidence-stake", type=float, default=100.0, help="Stake at 100%% confidence")
+    workbook.add_argument("--starting-bankroll", type=float, default=1000.0, help="Starting bankroll displayed in the workbook")
+    workbook.add_argument("--holdout-fraction", type=float, default=0.2, help="Latest chronological fraction used for holdout")
+
     args = parser.parse_args(argv)
     if args.command == "ingest":
         run_ingest(Path(args.raw_dir), Path(args.processed_dir))
@@ -125,6 +134,24 @@ def main(argv: list[str] | None = None) -> None:
             max_bankroll_fraction=args.max_bankroll_fraction,
             min_edge=args.min_edge,
             min_expected_roi=args.min_expected_roi,
+        )
+    elif args.command == "backtest-workbook":
+        result = generate_backtest_workbook(
+            features_path=Path(args.features),
+            output_path=Path(args.output),
+            rows_output_path=Path(args.rows_output) if args.rows_output else None,
+            max_confidence_stake=args.max_confidence_stake,
+            starting_bankroll=args.starting_bankroll,
+            holdout_fraction=args.holdout_fraction,
+        )
+        print(f"Wrote workbook to {result['output_path']}")
+        if result["rows_output_path"] is not None:
+            print(f"Wrote fight rows to {result['rows_output_path']}")
+        print(
+            "Holdout summary: "
+            f"{result['holdout_rows']} fights, "
+            f"accuracy {result['accuracy']:.2%}, "
+            f"even-money ROI {result['roi_even_money']:.2%}"
         )
     elif args.command == "betting-report":
         run_betting_report(
