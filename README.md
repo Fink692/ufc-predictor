@@ -14,6 +14,8 @@ This project trains winner models from historical UFCStats-style fight data usin
 - Late-round stamina features from round 3+ and championship-round performance
 - Order-balanced training so the model does not simply learn UFCStats fighter ordering
 - Sportsbook line ranking by expected value, edge, conservative Kelly sizing, and risk labels
+- Optional live MMA odds ingestion from The Odds API
+- One-command betting report generation with CSV and Markdown outputs
 - Chronological holdout reporting with accuracy, log loss, Brier score, ROC AUC, and baselines
 - CLI-first workflow that can be rerun from raw public data
 
@@ -76,6 +78,12 @@ To rank sportsbook odds after predictions are generated:
 python -m ufc_predictor.cli rank-odds --predictions reports/predictions.csv --odds-board data/odds_board.csv --output reports/value_bets.csv --bankroll 1000
 ```
 
+To generate the complete betting report from upcoming fights and an odds board:
+
+```powershell
+python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --markdown-output reports/betting_report.md --bankroll 1000
+```
+
 After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cli`.
 
 ## Upcoming Fight Input
@@ -103,6 +111,17 @@ event_date,fighter_a,fighter_b,sportsbook,fighter,american_odds
 The `rank-odds` command compares each sportsbook line against the model probability and outputs implied probability, model edge, expected return, conservative Kelly stake sizing, potential profit, max loss, risk label, and bet/pass decision.
 
 The default stake sizing uses quarter Kelly capped at 2% of bankroll. This is intentionally conservative and still does not make any bet safe.
+
+## Live Odds Fetching
+
+The project can optionally fetch current MMA fight-winner odds from [The Odds API](https://the-odds-api.com/sports/mma-ufc-odds.html). Set an API key and write an odds board:
+
+```powershell
+$env:THE_ODDS_API_KEY='your_api_key'
+python -m ufc_predictor.cli fetch-odds --output data/odds_board.csv --regions us --include-links
+```
+
+The fetcher uses sport key `mma_mixed_martial_arts`, market `h2h`, and American odds so the output is ready for `rank-odds` or `betting-report`. If you prefer specific books, use `--bookmakers draftkings,fanduel` instead of `--regions us`.
 
 ## Raw Table Schema
 

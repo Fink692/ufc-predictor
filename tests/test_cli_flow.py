@@ -26,6 +26,8 @@ class CliFlowTests(unittest.TestCase):
             eval_report = root / "reports" / "evaluation.json"
             predictions = root / "reports" / "predictions.csv"
             value_bets = root / "reports" / "value_bets.csv"
+            betting_report_csv = root / "reports" / "betting_report.csv"
+            betting_report_md = root / "reports" / "betting_report.md"
 
             main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
             main(["train", "--features", str(features), "--model-path", str(model), "--report", str(train_report)])
@@ -68,6 +70,27 @@ class CliFlowTests(unittest.TestCase):
                     "1000",
                 ]
             )
+            main(
+                [
+                    "betting-report",
+                    "--raw-dir",
+                    str(FIXTURES),
+                    "--model-path",
+                    str(model),
+                    "--upcoming",
+                    str(FIXTURES / "upcoming_fights.csv"),
+                    "--odds-board",
+                    str(FIXTURES / "odds_board.csv"),
+                    "--predictions-output",
+                    str(root / "reports" / "report_predictions.csv"),
+                    "--output",
+                    str(betting_report_csv),
+                    "--markdown-output",
+                    str(betting_report_md),
+                    "--bankroll",
+                    "1000",
+                ]
+            )
 
             self.assertTrue(model.exists())
             self.assertTrue(train_report.exists())
@@ -86,6 +109,11 @@ class CliFlowTests(unittest.TestCase):
             self.assertEqual(len(odds_output), 8)
             self.assertIn("expected_roi", odds_output.columns)
             self.assertTrue((odds_output["decision"] == "bet").any())
+            report_output = pd.read_csv(betting_report_csv)
+            self.assertEqual(len(report_output), 8)
+            self.assertIn("total_payout_if_win", report_output.columns)
+            self.assertTrue(betting_report_md.exists())
+            self.assertIn("# UFC Betting Value Report", betting_report_md.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

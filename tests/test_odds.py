@@ -14,6 +14,7 @@ from ufc_predictor.odds import (
     kelly_fraction,
     no_vig_probabilities,
     rank_value_bets,
+    value_bets_to_markdown,
 )
 
 
@@ -58,6 +59,20 @@ class OddsTests(unittest.TestCase):
         self.assertGreaterEqual(len(top), 1)
         self.assertTrue((bets["recommended_stake"] <= 20).all())
         self.assertTrue((bets["expected_roi"] > 0).all())
+        self.assertIn("total_payout_if_win", ranked.columns)
+        self.assertIn("risk_reward_ratio", ranked.columns)
+
+    def test_value_bets_to_markdown_summarizes_top_candidates(self) -> None:
+        predictions = pd.read_csv(FIXTURES / "predictions.csv")
+        odds_board = pd.read_csv(FIXTURES / "odds_board.csv")
+        ranked = rank_value_bets(predictions, odds_board, bankroll=1000)
+
+        report = value_bets_to_markdown(ranked, top_n=3, bankroll=1000)
+
+        self.assertIn("# UFC Betting Value Report", report)
+        self.assertIn("Analytics only. This is not betting advice.", report)
+        self.assertIn("| Matchup | Fighter | Sportsbook | Odds |", report)
+        self.assertIn("Qualifying value candidates:", report)
 
 
 if __name__ == "__main__":

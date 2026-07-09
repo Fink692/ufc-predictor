@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import pandas as pd
 
 from .features import FeatureBuilder, build_features_from_raw
-from .io import load_raw_tables, read_csv, write_csv, write_json
+from .io import ensure_parent, load_raw_tables, read_csv, write_csv, write_json
 from .models import evaluate_model, load_model, save_model, train_model
-from .odds import add_no_vig_probabilities, rank_value_bets
+from .odds import add_no_vig_probabilities, rank_value_bets, value_bets_to_markdown
+from .odds_api import DEFAULT_MMA_SPORT_KEY, fetch_odds_api_events, odds_api_events_to_board
 from .evaluation import classification_metrics
 from .ufcstats_source import DEFAULT_MIRROR_BASE_URL, convert_ufcstats_mirror
 
@@ -46,6 +48,20 @@ def main(argv: list[str] | None = None) -> None:
     predict.add_argument("--input", default="data/upcoming_fights.csv")
     predict.add_argument("--output", default="reports/predictions.csv")
 
+    fetch_odds = subparsers.add_parser("fetch-odds", help="Fetch current MMA moneyline odds from The Odds API")
+    fetch_odds.add_argument("--output", default="data/odds_board.csv", help="CSV path for the rankable odds board")
+    fetch_odds.add_argument("--api-key", default=None, help="The Odds API key; defaults to --api-key-env")
+    fetch_odds.add_argument("--api-key-env", default="THE_ODDS_API_KEY", help="Environment variable containing the API key")
+    fetch_odds.add_argument("--sport-key", default=DEFAULT_MMA_SPORT_KEY, help="The Odds API sport key")
+    fetch_odds.add_argument("--regions", default="us", help="Bookmaker regions when --bookmakers is not set")
+    fetch_odds.add_argument("--bookmakers", default=None, help="Comma-separated bookmaker keys, for example draftkings,fanduel")
+    fetch_odds.add_argument("--markets", default="h2h", help="Comma-separated market keys; h2h is used for fight winner")
+    fetch_odds.add_argument("--commence-time-from", default=None, help="Optional ISO8601 lower event-time bound")
+    fetch_odds.add_argument("--commence-time-to", default=None, help="Optional ISO8601 upper event-time bound")
+    fetch_odds.add_argument("--include-links", action="store_true", help="Request bookmaker and betslip links when available")
+    fetch_odds.add_argument("--include-sids", action="store_true", help="Request bookmaker source IDs when available")
+    fetch_odds.add_argument("--include-bet-limits", action="store_true", help="Request bet limits when available")
+
     rank_odds = subparsers.add_parser("rank-odds", help="Rank sportsbook lines by model edge and conservative Kelly sizing")
     rank_odds.add_argument("--predictions", default="reports/predictions.csv")
     rank_odds.add_argument("--odds-board", default="data/odds_board.csv")
@@ -55,6 +71,21 @@ def main(argv: list[str] | None = None) -> None:
     rank_odds.add_argument("--max-bankroll-fraction", type=float, default=0.02)
     rank_odds.add_argument("--min-edge", type=float, default=0.02)
     rank_odds.add_argument("--min-expected-roi", type=float, default=0.0)
+
+    betting_report = subparsers.add_parser("betting-report", help="Score fights and generate a ranked odds report")
+    betting_report.add_argument("--raw-dir", default="data/raw", help="Directory containing raw UFC history tables")
+    betting_report.add_argument("--model-path", default="models/ufc_model.joblib", help="Trained model bundle path")
+    betting_report.add_argument("--upcoming", default="data/upcoming_fights.csv", help="Upcoming fights CSV")
+    betting_report.add_argument("--odds-board", default="data/odds_board.csv", help="Sportsbook odds board CSV")
+    betting_report.add_argument("--predictions-output", default="reports/predictions.csv", help="Prediction CSV output")
+    betting_report.add_argument("--output", default="reports/value_bets.csv", help="Ranked value-bet CSV output")
+    betting_report.add_argument("--markdown-output", default="reports/betting_report.md", help="Markdown summary output")
+    betting_report.add_argument("--top-n", type=int, default=10, help="Number of rows to include in the Markdown summary")
+    betting_report.add_argument("--bankroll", type=float, default=1000.0, help="Bankroll used for stake sizing")
+    betting_report.add_argument("--kelly-multiplier", type=float, default=0.25, help="Fraction of full Kelly to use")
+    betting_report.add_argument("--max-bankroll-fraction", type=float, default=0.02, help="Maximum stake as bankroll fraction")
+    betting_report.add_argument("--min-edge", type=float, default=0.02, help="Minimum model edge over implied probability")
+    betting_report.add_argument("--min-expected-roi", type=float, default=0.0, help="Minimum expected return per dollar")
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
@@ -69,11 +100,42 @@ def main(argv: list[str] | None = None) -> None:
         run_evaluate(Path(args.features), Path(args.model_path), Path(args.report), Path(args.odds) if args.odds else None)
     elif args.command == "predict":
         run_predict(Path(args.raw_dir), Path(args.model_path), Path(args.input), Path(args.output))
+    elif args.command == "fetch-odds":
+        run_fetch_odds(
+            Path(args.output),
+            api_key=args.api_key,
+            api_key_env=args.api_key_env,
+            sport_key=args.sport_key,
+            regions=args.regions,
+            bookmakers=args.bookmakers,
+            markets=args.markets,
+            commence_time_from=args.commence_time_from,
+            commence_time_to=args.commence_time_to,
+            include_links=args.include_links,
+            include_sids=args.include_sids,
+            include_bet_limits=args.include_bet_limits,
+        )
     elif args.command == "rank-odds":
         run_rank_odds(
             Path(args.predictions),
             Path(args.odds_board),
             Path(args.output),
+            bankroll=args.bankroll,
+            kelly_multiplier=args.kelly_multiplier,
+            max_bankroll_fraction=args.max_bankroll_fraction,
+            min_edge=args.min_edge,
+            min_expected_roi=args.min_expected_roi,
+        )
+    elif args.command == "betting-report":
+        run_betting_report(
+            raw_dir=Path(args.raw_dir),
+            model_path=Path(args.model_path),
+            upcoming_path=Path(args.upcoming),
+            odds_board_path=Path(args.odds_board),
+            predictions_output_path=Path(args.predictions_output),
+            output_path=Path(args.output),
+            markdown_output_path=Path(args.markdown_output) if args.markdown_output else None,
+            top_n=args.top_n,
             bankroll=args.bankroll,
             kelly_multiplier=args.kelly_multiplier,
             max_bankroll_fraction=args.max_bankroll_fraction,
@@ -124,6 +186,12 @@ def run_evaluate(features_path: Path, model_path: Path, report_path: Path, odds_
 
 
 def run_predict(raw_dir: Path, model_path: Path, input_path: Path, output_path: Path) -> None:
+    output = build_prediction_output(raw_dir, model_path, input_path)
+    write_csv(output, output_path)
+    print(f"Wrote {len(output)} predictions to {output_path}")
+
+
+def build_prediction_output(raw_dir: Path, model_path: Path, input_path: Path) -> pd.DataFrame:
     tables = load_raw_tables(raw_dir)
     upcoming = pd.read_csv(input_path)
     prediction_features = FeatureBuilder().build_prediction_frame(tables, upcoming)
@@ -149,8 +217,40 @@ def run_predict(raw_dir: Path, model_path: Path, input_path: Path, output_path: 
     )
     output["confidence_bucket"] = output[["prob_fighter_a", "prob_fighter_b"]].max(axis=1).map(_confidence_bucket)
     output["model_version"] = str(bundle.metadata.get("model_type", "unknown"))
-    write_csv(output, output_path)
-    print(f"Wrote {len(output)} predictions to {output_path}")
+    return output
+
+
+def run_fetch_odds(
+    output_path: Path,
+    api_key: str | None,
+    api_key_env: str,
+    sport_key: str,
+    regions: str,
+    bookmakers: str | None,
+    markets: str,
+    commence_time_from: str | None,
+    commence_time_to: str | None,
+    include_links: bool,
+    include_sids: bool,
+    include_bet_limits: bool,
+) -> None:
+    resolved_api_key = api_key or os.environ.get(api_key_env, "")
+    events = fetch_odds_api_events(
+        api_key=resolved_api_key,
+        sport_key=sport_key,
+        regions=regions,
+        bookmakers=bookmakers,
+        markets=markets,
+        commence_time_from=commence_time_from,
+        commence_time_to=commence_time_to,
+        include_links=include_links,
+        include_sids=include_sids,
+        include_bet_limits=include_bet_limits,
+    )
+    board_market = markets.split(",", maxsplit=1)[0].strip()
+    odds_board = odds_api_events_to_board(events, market_key=board_market)
+    write_csv(odds_board, output_path)
+    print(f"Wrote {len(odds_board)} odds rows from {len(events)} events to {output_path}")
 
 
 def run_rank_odds(
@@ -175,6 +275,46 @@ def run_rank_odds(
     write_csv(value_bets, output_path)
     bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
     print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
+
+
+def run_betting_report(
+    raw_dir: Path,
+    model_path: Path,
+    upcoming_path: Path,
+    odds_board_path: Path,
+    predictions_output_path: Path,
+    output_path: Path,
+    markdown_output_path: Path | None,
+    top_n: int,
+    bankroll: float,
+    kelly_multiplier: float,
+    max_bankroll_fraction: float,
+    min_edge: float,
+    min_expected_roi: float,
+) -> None:
+    predictions = build_prediction_output(raw_dir, model_path, upcoming_path)
+    write_csv(predictions, predictions_output_path)
+    value_bets = rank_value_bets(
+        predictions,
+        read_csv(odds_board_path),
+        bankroll=bankroll,
+        kelly_multiplier=kelly_multiplier,
+        max_bankroll_fraction=max_bankroll_fraction,
+        min_edge=min_edge,
+        min_expected_roi=min_expected_roi,
+    )
+    write_csv(value_bets, output_path)
+    if markdown_output_path is not None:
+        ensure_parent(markdown_output_path)
+        markdown_output_path.write_text(
+            value_bets_to_markdown(value_bets, top_n=top_n, bankroll=bankroll),
+            encoding="utf-8",
+        )
+    bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
+    print(f"Wrote {len(predictions)} predictions to {predictions_output_path}")
+    print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
+    if markdown_output_path is not None:
+        print(f"Wrote betting report to {markdown_output_path}")
 
 
 def _confidence_bucket(probability: float) -> str:
