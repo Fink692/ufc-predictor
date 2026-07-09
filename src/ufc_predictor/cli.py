@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from .backtest_workbook import generate_backtest_workbook
+from .betting_workbook import generate_betting_workbook
 from .features import FeatureBuilder, build_features_from_raw
 from .io import ensure_parent, load_raw_tables, read_csv, write_csv, write_json
 from .models import evaluate_model, load_model, save_model, train_model
@@ -79,6 +80,7 @@ def main(argv: list[str] | None = None) -> None:
     betting_report.add_argument("--output", default="reports/value_bets.csv", help="Ranked value-bet CSV output")
     betting_report.add_argument("--fight-output", default="reports/fight_recommendations.csv", help="Per-fight confidence bet CSV output")
     betting_report.add_argument("--markdown-output", default="reports/betting_report.md", help="Markdown summary output")
+    betting_report.add_argument("--workbook-output", default=None, help="Optional Excel workbook output with tables and charts")
     betting_report.add_argument("--top-n", type=int, default=10, help="Number of rows to include in the Markdown summary")
     betting_report.add_argument("--bankroll", type=float, default=1000.0, help="Bankroll used for stake sizing")
     betting_report.add_argument("--max-confidence-stake", type=float, default=100.0, help="Stake at 100%% confidence")
@@ -175,6 +177,7 @@ def main(argv: list[str] | None = None) -> None:
             output_path=Path(args.output),
             fight_output_path=Path(args.fight_output),
             markdown_output_path=Path(args.markdown_output) if args.markdown_output else None,
+            workbook_output_path=Path(args.workbook_output) if args.workbook_output else None,
             top_n=args.top_n,
             bankroll=args.bankroll,
             max_confidence_stake=args.max_confidence_stake,
@@ -384,6 +387,7 @@ def run_betting_report(
     output_path: Path,
     fight_output_path: Path,
     markdown_output_path: Path | None,
+    workbook_output_path: Path | None,
     top_n: int,
     bankroll: float,
     max_confidence_stake: float,
@@ -436,12 +440,24 @@ def run_betting_report(
             + fight_recommendations_to_markdown(fight_recommendations, top_n=top_n),
             encoding="utf-8",
         )
+    if workbook_output_path is not None:
+        generate_betting_workbook(
+            output_path=workbook_output_path,
+            predictions=predictions,
+            odds_board=odds_board,
+            value_bets=value_bets,
+            fight_recommendations=fight_recommendations,
+            bankroll=bankroll,
+            max_confidence_stake=max_confidence_stake,
+        )
     bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
     print(f"Wrote {len(predictions)} predictions to {predictions_output_path}")
     print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
     print(f"Wrote {len(fight_recommendations)} fight recommendations to {fight_output_path}")
     if markdown_output_path is not None:
         print(f"Wrote betting report to {markdown_output_path}")
+    if workbook_output_path is not None:
+        print(f"Wrote betting workbook to {workbook_output_path}")
 
 
 def _confidence_bucket(probability: float) -> str:

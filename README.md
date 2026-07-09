@@ -15,7 +15,7 @@ This project trains winner models from historical UFCStats-style fight data usin
 - Order-balanced training so the model does not simply learn UFCStats fighter ordering
 - Sportsbook line ranking by expected value, edge, conservative Kelly sizing, and risk labels
 - Optional live MMA odds ingestion from The Odds API
-- One-command betting report generation with value-board, per-fight confidence-stake, and Markdown outputs
+- One-command betting report generation with value-board, per-fight confidence-stake, Markdown, and Excel workbook outputs
 - Excel backtest workbook with tables, charts, and fight-level holdout rows
 - Chronological holdout reporting with accuracy, log loss, Brier score, ROC AUC, and baselines
 - CLI-first workflow that can be rerun from raw public data
@@ -82,14 +82,14 @@ python -m ufc_predictor.cli rank-odds --predictions reports/predictions.csv --od
 To generate the complete betting report from upcoming fights and an odds board:
 
 ```powershell
-python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
+python -m ufc_predictor.cli betting-report --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --workbook-output reports/betting_report.xlsx --bankroll 1000 --max-confidence-stake 100
 ```
 
 Or fetch live MMA odds and generate every report artifact in one command:
 
 ```powershell
 $env:THE_ODDS_API_KEY='your_api_key'
-python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --bankroll 1000 --max-confidence-stake 100
+python -m ufc_predictor.cli betting-report --fetch-live-odds --include-links --raw-dir data/raw --model-path models/ufc_model.joblib --upcoming data/upcoming_fights.csv --odds-board data/odds_board.csv --predictions-output reports/predictions.csv --output reports/value_bets.csv --fight-output reports/fight_recommendations.csv --markdown-output reports/betting_report.md --workbook-output reports/betting_report.xlsx --bankroll 1000 --max-confidence-stake 100
 ```
 
 To generate the historical holdout workbook with tables and charts:
@@ -104,8 +104,9 @@ After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cl
 
 - [Backtest workbook](docs/artifacts/ufc_backtest_tables_charts.xlsx)
 - [Fight-level backtest rows](docs/artifacts/ufc_holdout_backtest_rows.csv)
+- [Example betting workbook](docs/artifacts/ufc_betting_report_example.xlsx)
 
-The workbook uses the chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include full historical sportsbook closing odds.
+The backtest workbook uses the chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include full historical sportsbook closing odds. The example betting workbook uses fixture odds so the report format can be reviewed without requiring a live odds API key.
 
 ## Upcoming Fight Input
 
@@ -133,7 +134,7 @@ The `rank-odds` command compares each sportsbook line against the model probabil
 
 The default stake sizing uses quarter Kelly capped at 2% of bankroll. This is intentionally conservative and still does not make any bet safe.
 
-The `betting-report` command also writes `reports/fight_recommendations.csv`. This is the quick per-fight view: our predicted winner, model win probability, adjusted confidence, best available odds for that pick, confidence-sized stake, profit if correct, expected profit, and whether the line is positive or negative expected value.
+The `betting-report` command also writes `reports/fight_recommendations.csv`, and can write `reports/betting_report.xlsx` with `--workbook-output`. This is the quick per-fight view: our predicted winner, model win probability, adjusted confidence, best available odds for that pick, confidence-sized stake, profit if correct, expected profit, and whether the line is positive or negative expected value.
 
 Confidence stake sizing maps a coin-flip pick to `$0` and a 100% confident pick to `--max-confidence-stake`, which defaults to `$100`:
 

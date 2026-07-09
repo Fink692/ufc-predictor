@@ -31,6 +31,7 @@ class CliFlowTests(unittest.TestCase):
             betting_report_csv = root / "reports" / "betting_report.csv"
             fight_recommendations_csv = root / "reports" / "fight_recommendations.csv"
             betting_report_md = root / "reports" / "betting_report.md"
+            betting_report_xlsx = root / "reports" / "betting_report.xlsx"
 
             main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
             main(["train", "--features", str(features), "--model-path", str(model), "--report", str(train_report)])
@@ -92,6 +93,8 @@ class CliFlowTests(unittest.TestCase):
                     str(fight_recommendations_csv),
                     "--markdown-output",
                     str(betting_report_md),
+                    "--workbook-output",
+                    str(betting_report_xlsx),
                     "--max-confidence-stake",
                     "100",
                     "--bankroll",
@@ -131,6 +134,13 @@ class CliFlowTests(unittest.TestCase):
             markdown = betting_report_md.read_text(encoding="utf-8")
             self.assertIn("# UFC Betting Value Report", markdown)
             self.assertIn("# Fight Confidence Bets", markdown)
+            self.assertTrue(betting_report_xlsx.exists())
+            betting_workbook = load_workbook(betting_report_xlsx, read_only=False, data_only=False)
+            self.assertIn("Summary", betting_workbook.sheetnames)
+            self.assertIn("Fight Recommendations", betting_workbook.sheetnames)
+            self.assertIn("Value Board", betting_workbook.sheetnames)
+            self.assertIn("Charts", betting_workbook.sheetnames)
+            self.assertGreaterEqual(len(betting_workbook["Charts"]._charts), 1)
 
     def test_betting_report_can_fetch_live_odds_first(self) -> None:
         live_events = [
