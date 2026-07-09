@@ -8,7 +8,7 @@ import pandas as pd
 from .features import FeatureBuilder, build_features_from_raw
 from .io import load_raw_tables, read_csv, write_csv, write_json
 from .models import evaluate_model, load_model, save_model, train_model
-from .odds import add_no_vig_probabilities
+from .odds import add_no_vig_probabilities, rank_value_bets
 from .evaluation import classification_metrics
 from .ufcstats_source import DEFAULT_MIRROR_BASE_URL, convert_ufcstats_mirror
 
@@ -46,6 +46,16 @@ def main(argv: list[str] | None = None) -> None:
     predict.add_argument("--input", default="data/upcoming_fights.csv")
     predict.add_argument("--output", default="reports/predictions.csv")
 
+    rank_odds = subparsers.add_parser("rank-odds", help="Rank sportsbook lines by model edge and conservative Kelly sizing")
+    rank_odds.add_argument("--predictions", default="reports/predictions.csv")
+    rank_odds.add_argument("--odds-board", default="data/odds_board.csv")
+    rank_odds.add_argument("--output", default="reports/value_bets.csv")
+    rank_odds.add_argument("--bankroll", type=float, default=1000.0)
+    rank_odds.add_argument("--kelly-multiplier", type=float, default=0.25)
+    rank_odds.add_argument("--max-bankroll-fraction", type=float, default=0.02)
+    rank_odds.add_argument("--min-edge", type=float, default=0.02)
+    rank_odds.add_argument("--min-expected-roi", type=float, default=0.0)
+
     args = parser.parse_args(argv)
     if args.command == "ingest":
         run_ingest(Path(args.raw_dir), Path(args.processed_dir))
@@ -59,6 +69,17 @@ def main(argv: list[str] | None = None) -> None:
         run_evaluate(Path(args.features), Path(args.model_path), Path(args.report), Path(args.odds) if args.odds else None)
     elif args.command == "predict":
         run_predict(Path(args.raw_dir), Path(args.model_path), Path(args.input), Path(args.output))
+    elif args.command == "rank-odds":
+        run_rank_odds(
+            Path(args.predictions),
+            Path(args.odds_board),
+            Path(args.output),
+            bankroll=args.bankroll,
+            kelly_multiplier=args.kelly_multiplier,
+            max_bankroll_fraction=args.max_bankroll_fraction,
+            min_edge=args.min_edge,
+            min_expected_roi=args.min_expected_roi,
+        )
 
 
 def run_ingest(raw_dir: Path, processed_dir: Path) -> None:
@@ -130,6 +151,30 @@ def run_predict(raw_dir: Path, model_path: Path, input_path: Path, output_path: 
     output["model_version"] = str(bundle.metadata.get("model_type", "unknown"))
     write_csv(output, output_path)
     print(f"Wrote {len(output)} predictions to {output_path}")
+
+
+def run_rank_odds(
+    predictions_path: Path,
+    odds_board_path: Path,
+    output_path: Path,
+    bankroll: float,
+    kelly_multiplier: float,
+    max_bankroll_fraction: float,
+    min_edge: float,
+    min_expected_roi: float,
+) -> None:
+    value_bets = rank_value_bets(
+        read_csv(predictions_path),
+        read_csv(odds_board_path),
+        bankroll=bankroll,
+        kelly_multiplier=kelly_multiplier,
+        max_bankroll_fraction=max_bankroll_fraction,
+        min_edge=min_edge,
+        min_expected_roi=min_expected_roi,
+    )
+    write_csv(value_bets, output_path)
+    bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
+    print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
 
 
 def _confidence_bucket(probability: float) -> str:

@@ -13,6 +13,7 @@ This project trains winner models from historical UFCStats-style fight data usin
 - Age, reach, stance, layoffs, Elo, recent form, opponent strength, grappling, striking, control, and stamina/fade features
 - Late-round stamina features from round 3+ and championship-round performance
 - Order-balanced training so the model does not simply learn UFCStats fighter ordering
+- Sportsbook line ranking by expected value, edge, conservative Kelly sizing, and risk labels
 - Chronological holdout reporting with accuracy, log loss, Brier score, ROC AUC, and baselines
 - CLI-first workflow that can be rerun from raw public data
 
@@ -69,6 +70,12 @@ To score upcoming fights after a model is trained:
 python -m ufc_predictor.cli predict --raw-dir data/raw --model-path models/ufc_model.joblib --input data/upcoming_fights.csv --output reports/predictions.csv
 ```
 
+To rank sportsbook odds after predictions are generated:
+
+```powershell
+python -m ufc_predictor.cli rank-odds --predictions reports/predictions.csv --odds-board data/odds_board.csv --output reports/value_bets.csv --bankroll 1000
+```
+
 After editable install, use `ufc-predict` instead of `python -m ufc_predictor.cli`.
 
 ## Upcoming Fight Input
@@ -81,6 +88,21 @@ event_date,fighter_a,fighter_b,weight_class,gender,scheduled_rounds,title_fight
 ```
 
 Fighter names are matched after normalization against `fighters.csv`.
+
+## Odds Board Input
+
+`data/odds_board.csv`
+
+```csv
+event_date,fighter_a,fighter_b,sportsbook,fighter,american_odds
+2026-06-01,Fighter One,Fighter Two,Book A,Fighter One,-125
+2026-06-01,Fighter One,Fighter Two,Book B,Fighter One,+105
+2026-06-01,Fighter One,Fighter Two,Book A,Fighter Two,+115
+```
+
+The `rank-odds` command compares each sportsbook line against the model probability and outputs implied probability, model edge, expected return, conservative Kelly stake sizing, potential profit, max loss, risk label, and bet/pass decision.
+
+The default stake sizing uses quarter Kelly capped at 2% of bankroll. This is intentionally conservative and still does not make any bet safe.
 
 ## Raw Table Schema
 
@@ -106,6 +128,7 @@ python -m compileall -q src tests
 - [Model Card](docs/MODEL_CARD.md)
 - [Data Notes](docs/DATA.md)
 - [Results](docs/RESULTS.md)
+- [Odds And Risk](docs/ODDS.md)
 
 ## Caveats
 

@@ -25,6 +25,7 @@ class CliFlowTests(unittest.TestCase):
             train_report = root / "reports" / "train_metrics.json"
             eval_report = root / "reports" / "evaluation.json"
             predictions = root / "reports" / "predictions.csv"
+            value_bets = root / "reports" / "value_bets.csv"
 
             main(["build-features", "--raw-dir", str(FIXTURES), "--output", str(features)])
             main(["train", "--features", str(features), "--model-path", str(model), "--report", str(train_report)])
@@ -54,6 +55,19 @@ class CliFlowTests(unittest.TestCase):
                     str(predictions),
                 ]
             )
+            main(
+                [
+                    "rank-odds",
+                    "--predictions",
+                    str(FIXTURES / "predictions.csv"),
+                    "--odds-board",
+                    str(FIXTURES / "odds_board.csv"),
+                    "--output",
+                    str(value_bets),
+                    "--bankroll",
+                    "1000",
+                ]
+            )
 
             self.assertTrue(model.exists())
             self.assertTrue(train_report.exists())
@@ -68,6 +82,10 @@ class CliFlowTests(unittest.TestCase):
             self.assertIn("prob_fighter_a", output.columns)
             self.assertTrue(output["prob_fighter_a"].between(0, 1).all())
             self.assertTrue(output["prob_fighter_b"].between(0, 1).all())
+            odds_output = pd.read_csv(value_bets)
+            self.assertEqual(len(odds_output), 8)
+            self.assertIn("expected_roi", odds_output.columns)
+            self.assertTrue((odds_output["decision"] == "bet").any())
 
 
 if __name__ == "__main__":

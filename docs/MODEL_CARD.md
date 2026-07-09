@@ -14,6 +14,7 @@ The current primary model is `order_balanced_stamina_logistic`:
 - Strong regularization selected after adding stamina/fade features
 - Order-balanced training by mirroring fighter A/B matchup orientation
 - Final saved model is fit on all trainable rows after reporting chronological holdout metrics
+- A separate odds-ranking layer compares model probabilities with sportsbook lines for expected-value analytics
 
 ## Features
 
@@ -44,6 +45,7 @@ Latest local benchmark:
 The model does not currently include:
 
 - Betting odds or market movement
+- Live sportsbook feeds
 - Injury/camp/weight-cut/short-notice context
 - Rankings or media scorecards
 - News, interviews, or qualitative scouting
