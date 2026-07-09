@@ -130,6 +130,24 @@ Important per-fight recommendation columns:
 - `value_flag`: `positive_ev`, `negative_ev`, or `missing_odds`
 - `all_predicted_winner_odds`: every available line found for the pick
 
+## Historical Odds Backtest
+
+If you have real historical moneylines, the `historical-odds-backtest` command replays the value-board logic against actual fight outcomes.
+
+```powershell
+ufc-predict historical-odds-backtest --predictions reports/historical_predictions.csv --odds-board data/historical_odds_board.csv --output reports/historical_odds_backtest.csv --summary-output reports/historical_odds_strategy_summary.csv --workbook-output reports/historical_odds_backtest.xlsx --bankroll 1000 --flat-stake 10 --max-confidence-stake 100
+```
+
+The historical prediction file must include `actual_winner` or `target_fighter_a_win`. The odds board uses the same row-per-bookmaker-line schema as live odds.
+
+The backtest compares:
+
+- conservative Kelly stake from the value board
+- fixed flat stake
+- confidence stake where model confidence maps to dollars
+
+The strategy summary reports bet count, wins, hit rate, total stake, net profit, ROI, ending bankroll, and max drawdown.
+
 Workbook sheets:
 
 - `Summary`: report-level assumptions, counts, total confidence stake, expected profit, and worst-case confidence-stake loss

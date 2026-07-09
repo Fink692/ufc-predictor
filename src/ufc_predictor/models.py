@@ -12,6 +12,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+from .calibration import calibration_summary
 from .evaluation import classification_metrics
 from .features import CATEGORICAL_MODEL_FEATURES, MODEL_FEATURES, NUMERIC_MODEL_FEATURES
 from .io import ensure_parent
@@ -113,6 +114,7 @@ def evaluate_model(bundle: ModelBundle, features: pd.DataFrame) -> dict[str, obj
     probabilities = bundle.predict_proba(evaluation)
     return {
         "model": classification_metrics(y, probabilities),
+        "model_calibration": calibration_summary(y, probabilities, bins=10),
         "logistic_baseline": classification_metrics(
             y,
             bundle.logistic_baseline.predict_proba(evaluation[bundle.feature_columns])[:, 1],
@@ -197,7 +199,7 @@ def make_order_balanced_frame(features: pd.DataFrame) -> pd.DataFrame:
             swapped[left] = features[right].to_numpy()
             swapped[right] = features[left].to_numpy()
     for column in features.columns:
-        if column in ALWAYS_SIGNED_FEATURES or column.endswith("_diff") or column.endswith("_diff_days"):
+        if column in ALWAYS_SIGNED_FEATURES or column.endswith("_diff") or column.endswith("_diff_days") or column.endswith("_diff_km"):
             swapped[column] = -features[column]
     if "elo_prob_fighter_a" in features.columns:
         swapped["elo_prob_fighter_a"] = 1.0 - features["elo_prob_fighter_a"]

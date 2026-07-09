@@ -10,12 +10,16 @@ The project trains on historical UFCStats-style data using only information that
 
 > Analytics only. This is not betting advice.
 
+![UFC Predictor report preview](docs/assets/report-preview.svg)
+
 ## What It Does
 
 - Builds pre-fight features for age, reach, stance, layoffs, Elo, opponent strength, recent form, striking, grappling, control, stamina, late-round fade, and championship-round history.
 - Trains an order-balanced model so results are not inflated by fighter ordering artifacts.
 - Scores upcoming fights with calibrated probabilities, picks, confidence, and model-implied fair odds.
 - Ranks sportsbook lines by implied probability, model edge, expected ROI, conservative Kelly sizing, payout, loss exposure, and risk label.
+- Backtests historical odds files with conservative Kelly, flat-stake, and confidence-stake bankroll simulations.
+- Compares model families and reports calibration error so probability quality is visible, not just accuracy.
 - Produces shareable betting and backtest workbooks with tables, charts, and fight-level rows.
 
 ## Benchmark Snapshot
@@ -27,7 +31,7 @@ Latest local run using the public UFCStats mirror from [`Greco1899/scrape_ufc_st
 | Source fights | 8,701 |
 | Trainable fights | 8,547 |
 | Date range | 1994-03-11 to 2026-05-16 |
-| Model features | 148 |
+| Model features | 148 active in benchmark; 165 current schema columns with optional context hooks |
 | Stamina/fade features | 39 |
 | Holdout split | Latest chronological 20% |
 | Holdout rows | 1,709 |
@@ -45,6 +49,7 @@ The benchmark report is reproducible from the raw public data. Generated runtime
 - [Backtest workbook](docs/artifacts/ufc_backtest_tables_charts.xlsx)
 - [Fight-level backtest rows](docs/artifacts/ufc_holdout_backtest_rows.csv)
 - [Example betting workbook](docs/artifacts/ufc_betting_report_example.xlsx)
+- [Example historical odds backtest workbook](docs/artifacts/ufc_historical_odds_backtest_example.xlsx)
 
 The backtest workbook uses a chronological holdout and a synthetic even-money confidence-stake simulation because the repository does not include a complete historical sportsbook closing-line dataset. The betting workbook uses fixture odds so the report format can be reviewed without a live odds API key.
 
@@ -57,6 +62,7 @@ flowchart LR
     C --> D["Upcoming fight probabilities"]
     D --> E["Sportsbook odds comparison"]
     E --> F["CSV, Markdown, and Excel reports"]
+    E --> H["Historical odds bankroll replay"]
     C --> G["Holdout backtest workbook"]
 ```
 
@@ -84,6 +90,8 @@ Core historical tables:
 
 Upcoming fights use `event_date`, `fighter_a`, `fighter_b`, `weight_class`, `gender`, `scheduled_rounds`, and `title_fight`. Odds boards use one row per sportsbook line with `event_date`, matchup names, sportsbook, fighter, and American odds.
 
+Optional contextual columns can be added when available: short notice flags, weight misses, camp changes, disclosed injury flags, camps, altitude, and travel-distance differences. Missing context defaults to neutral values so the public UFCStats workflow still runs cleanly.
+
 ## Reports
 
 | Output | Description |
@@ -93,6 +101,9 @@ Upcoming fights use `event_date`, `fighter_a`, `fighter_b`, `weight_class`, `gen
 | Fight recommendations | One row per fight with the model pick, best available odds, confidence stake, expected profit, and max loss |
 | Betting workbook | Summary, recommendations, value board, best lines, top matchups, raw odds, predictions, and charts |
 | Backtest workbook | Holdout metrics, fight rows, confidence buckets, yearly splits, threshold scenarios, and charts |
+| Historical odds backtest | Real odds replay with Kelly, flat-stake, and confidence-stake bankroll simulations |
+| Calibration report | Probability bucket table with observed win rate, expected calibration error, and maximum calibration error |
+| Model comparison | Chronological holdout comparison across logistic, random forest, and gradient boosting families |
 
 Confidence stake sizing maps a coin-flip pick to `$0` and a 100% confident pick to the configured max stake. By default, value-bet staking uses quarter Kelly capped at 2% of bankroll.
 

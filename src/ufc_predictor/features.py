@@ -156,6 +156,21 @@ NUMERIC_MODEL_FEATURES = [
     "scheduled_rounds",
     "title_fight",
     "same_stance",
+    "same_camp",
+    "altitude_ft",
+    "fighter_a_short_notice",
+    "fighter_b_short_notice",
+    "short_notice_diff",
+    "fighter_a_weight_miss",
+    "fighter_b_weight_miss",
+    "weight_miss_diff",
+    "fighter_a_camp_change",
+    "fighter_b_camp_change",
+    "camp_change_diff",
+    "fighter_a_disclosed_injury",
+    "fighter_b_disclosed_injury",
+    "disclosed_injury_diff",
+    "travel_distance_diff_km",
 ]
 
 CATEGORICAL_MODEL_FEATURES = [
@@ -163,6 +178,8 @@ CATEGORICAL_MODEL_FEATURES = [
     "gender",
     "fighter_a_stance",
     "fighter_b_stance",
+    "fighter_a_camp",
+    "fighter_b_camp",
 ]
 
 MODEL_FEATURES = NUMERIC_MODEL_FEATURES + CATEGORICAL_MODEL_FEATURES
@@ -423,6 +440,9 @@ class FeatureBuilder:
                 "scheduled_rounds": fight["scheduled_rounds"],
                 "title_fight": fight["title_fight"],
             }
+            for column, value in fight.items():
+                if column not in synthetic:
+                    synthetic[column] = value
             row = self._matchup_features(
                 fight=synthetic,
                 fighter_a=fighter_a,
@@ -464,8 +484,25 @@ class FeatureBuilder:
             "title_fight": float(bool(fight["title_fight"])),
             "fighter_a_stance": fighter_a.get("fighter_stance", "Unknown") or "Unknown",
             "fighter_b_stance": fighter_b.get("fighter_stance", "Unknown") or "Unknown",
+            "fighter_a_camp": _context_text(fight, "fighter_a_camp"),
+            "fighter_b_camp": _context_text(fight, "fighter_b_camp"),
         }
         row["same_stance"] = float(row["fighter_a_stance"] == row["fighter_b_stance"])
+        row["same_camp"] = float(row["fighter_a_camp"] != "Unknown" and row["fighter_a_camp"] == row["fighter_b_camp"])
+        row["altitude_ft"] = _context_float(fight, "altitude_ft", 0.0)
+        row["fighter_a_short_notice"] = _context_bool(fight, "fighter_a_short_notice")
+        row["fighter_b_short_notice"] = _context_bool(fight, "fighter_b_short_notice")
+        row["short_notice_diff"] = row["fighter_a_short_notice"] - row["fighter_b_short_notice"]
+        row["fighter_a_weight_miss"] = _context_bool(fight, "fighter_a_weight_miss")
+        row["fighter_b_weight_miss"] = _context_bool(fight, "fighter_b_weight_miss")
+        row["weight_miss_diff"] = row["fighter_a_weight_miss"] - row["fighter_b_weight_miss"]
+        row["fighter_a_camp_change"] = _context_bool(fight, "fighter_a_camp_change")
+        row["fighter_b_camp_change"] = _context_bool(fight, "fighter_b_camp_change")
+        row["camp_change_diff"] = row["fighter_a_camp_change"] - row["fighter_b_camp_change"]
+        row["fighter_a_disclosed_injury"] = _context_bool(fight, "fighter_a_disclosed_injury")
+        row["fighter_b_disclosed_injury"] = _context_bool(fight, "fighter_b_disclosed_injury")
+        row["disclosed_injury_diff"] = row["fighter_a_disclosed_injury"] - row["fighter_b_disclosed_injury"]
+        row["travel_distance_diff_km"] = _travel_distance_diff(fight)
         row["age_diff"] = _age_years(fighter_a.get("fighter_dob"), event_date) - _age_years(fighter_b.get("fighter_dob"), event_date)
         row["height_diff_cm"] = _safe_float(fighter_a.get("fighter_height_cm")) - _safe_float(fighter_b.get("fighter_height_cm"))
         row["reach_diff_cm"] = _safe_float(fighter_a.get("fighter_reach_cm")) - _safe_float(fighter_b.get("fighter_reach_cm"))
@@ -629,6 +666,40 @@ def _safe_float(value: object) -> float:
         return float(value)
     except (TypeError, ValueError):
         return np.nan
+
+
+def _context_float(row: dict[str, object], column: str, default: float = 0.0) -> float:
+    if column not in row:
+        return default
+    value = _safe_float(row.get(column))
+    return default if pd.isna(value) else value
+
+
+def _context_bool(row: dict[str, object], column: str) -> float:
+    if column not in row or pd.isna(row.get(column)):
+        return 0.0
+    return float(_parse_bool(row.get(column)))
+
+
+def _context_text(row: dict[str, object], column: str) -> str:
+    value = row.get(column, "Unknown")
+    if pd.isna(value):
+        return "Unknown"
+    text = str(value).strip()
+    return text if text else "Unknown"
+
+
+def _travel_distance_diff(row: dict[str, object]) -> float:
+    if "travel_distance_diff_km" in row:
+        value = _safe_float(row.get("travel_distance_diff_km"))
+        return 0.0 if pd.isna(value) else value
+    distance_a = _safe_float(row.get("fighter_a_travel_distance_km", 0.0))
+    distance_b = _safe_float(row.get("fighter_b_travel_distance_km", 0.0))
+    if pd.isna(distance_a):
+        distance_a = 0.0
+    if pd.isna(distance_b):
+        distance_b = 0.0
+    return float(distance_a - distance_b)
 
 
 def _parse_bool(value: object) -> bool:

@@ -43,6 +43,29 @@ class FeatureBuilderTests(unittest.TestCase):
         self.assertEqual(predictions.iloc[0]["fighter_a"], "Alpha Adams")
         self.assertGreaterEqual(predictions.iloc[0]["fighter_a_ufc_fights"], 4)
 
+    def test_prediction_features_accept_optional_context_variables(self) -> None:
+        tables = load_raw_tables(FIXTURES)
+        upcoming = pd.read_csv(FIXTURES / "upcoming_fights.csv").head(1).copy()
+        upcoming["fighter_a_short_notice"] = True
+        upcoming["fighter_b_short_notice"] = False
+        upcoming["fighter_a_weight_miss"] = False
+        upcoming["fighter_b_weight_miss"] = True
+        upcoming["fighter_a_camp"] = "North Gym"
+        upcoming["fighter_b_camp"] = "South Gym"
+        upcoming["altitude_ft"] = 5200
+        upcoming["fighter_a_travel_distance_km"] = 1000
+        upcoming["fighter_b_travel_distance_km"] = 300
+
+        predictions = FeatureBuilder().build_prediction_frame(tables, upcoming)
+
+        self.assertEqual(predictions.iloc[0]["fighter_a_short_notice"], 1.0)
+        self.assertEqual(predictions.iloc[0]["short_notice_diff"], 1.0)
+        self.assertEqual(predictions.iloc[0]["weight_miss_diff"], -1.0)
+        self.assertEqual(predictions.iloc[0]["fighter_a_camp"], "North Gym")
+        self.assertEqual(predictions.iloc[0]["same_camp"], 0.0)
+        self.assertEqual(predictions.iloc[0]["altitude_ft"], 5200)
+        self.assertEqual(predictions.iloc[0]["travel_distance_diff_km"], 700)
+
 
 if __name__ == "__main__":
     unittest.main()

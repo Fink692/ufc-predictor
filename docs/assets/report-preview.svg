@@ -1,0 +1,49 @@
+<svg width="1080" height="520" viewBox="0 0 1080 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">UFC Predictor report preview</title>
+  <desc id="desc">Preview of a betting analytics dashboard with model confidence, value board, and bankroll chart.</desc>
+  <rect width="1080" height="520" rx="18" fill="#0F172A"/>
+  <rect x="34" y="34" width="1012" height="452" rx="12" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="1012" height="72" rx="12" fill="#1F4E78"/>
+  <text x="64" y="79" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">UFC Betting Value Report</text>
+  <text x="791" y="77" fill="#D7EAF7" font-family="Segoe UI, Arial, sans-serif" font-size="15">analytics only, not betting advice</text>
+
+  <rect x="64" y="134" width="218" height="90" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="84" y="165" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">FIGHTS SCORED</text>
+  <text x="84" y="202" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">12</text>
+
+  <rect x="306" y="134" width="218" height="90" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="326" y="165" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">VALUE CANDIDATES</text>
+  <text x="326" y="202" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">5</text>
+
+  <rect x="548" y="134" width="218" height="90" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="568" y="165" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">CONFIDENCE STAKE</text>
+  <text x="568" y="202" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">$184</text>
+
+  <rect x="790" y="134" width="218" height="90" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="810" y="165" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">EXPECTED PROFIT</text>
+  <text x="810" y="202" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">+$31</text>
+
+  <rect x="64" y="256" width="578" height="184" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="86" y="288" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Top Value Board</text>
+  <text x="86" y="326" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">FIGHTER</text>
+  <text x="272" y="326" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">BOOK</text>
+  <text x="392" y="326" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">ODDS</text>
+  <text x="488" y="326" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">EDGE</text>
+  <line x1="86" y1="340" x2="620" y2="340" stroke="#E2E8F0"/>
+  <text x="86" y="368" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15">Alpha Adams</text>
+  <text x="272" y="368" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15">Book B</text>
+  <text x="392" y="368" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">+105</text>
+  <text x="488" y="368" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">+9.2%</text>
+  <line x1="86" y1="384" x2="620" y2="384" stroke="#E2E8F0"/>
+  <text x="86" y="412" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15">Bruno Blake</text>
+  <text x="272" y="412" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15">Book A</text>
+  <text x="392" y="412" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">+130</text>
+  <text x="488" y="412" fill="#047857" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">+6.5%</text>
+
+  <rect x="674" y="256" width="334" height="184" rx="8" fill="#FFFFFF" stroke="#D6DEE8"/>
+  <text x="696" y="288" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Bankroll Simulation</text>
+  <line x1="708" y1="405" x2="980" y2="405" stroke="#CBD5E1"/>
+  <line x1="708" y1="330" x2="708" y2="405" stroke="#CBD5E1"/>
+  <polyline points="710,390 746,377 782,384 818,350 854,358 890,324 926,338 974,306" fill="none" stroke="#1F4E78" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="974" cy="306" r="6" fill="#047857"/>
+</svg>

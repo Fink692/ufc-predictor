@@ -8,8 +8,11 @@ import pandas as pd
 
 from .backtest_workbook import generate_backtest_workbook
 from .betting_workbook import generate_betting_workbook
+from .calibration import calibration_summary, calibration_table
 from .features import FeatureBuilder, build_features_from_raw
+from .historical_odds import backtest_historical_odds, write_historical_odds_workbook
 from .io import ensure_parent, load_raw_tables, read_csv, write_csv, write_json
+from .model_compare import compare_model_families
 from .models import evaluate_model, load_model, save_model, train_model
 from .odds import (
     add_no_vig_probabilities,
@@ -50,6 +53,18 @@ def main(argv: list[str] | None = None) -> None:
     evaluate.add_argument("--report", default="reports/evaluation.json")
     evaluate.add_argument("--odds", default=None, help="Optional odds CSV with fight_id, odds_fighter_a, odds_fighter_b")
 
+    compare = subparsers.add_parser("compare-models", help="Compare model families on the same chronological holdout")
+    compare.add_argument("--features", default="data/processed/features.csv")
+    compare.add_argument("--output", default="reports/model_comparison.csv")
+    compare.add_argument("--holdout-fraction", type=float, default=0.2)
+
+    calibration = subparsers.add_parser("calibration-report", help="Write calibration buckets for a saved model")
+    calibration.add_argument("--features", default="data/processed/features.csv")
+    calibration.add_argument("--model-path", default="models/ufc_model.joblib")
+    calibration.add_argument("--output", default="reports/calibration.csv")
+    calibration.add_argument("--report", default="reports/calibration_summary.json")
+    calibration.add_argument("--bins", type=int, default=10)
+
     predict = subparsers.add_parser("predict", help="Score upcoming fights from a CSV")
     predict.add_argument("--raw-dir", default="data/raw")
     predict.add_argument("--model-path", default="models/ufc_model.joblib")
@@ -69,6 +84,20 @@ def main(argv: list[str] | None = None) -> None:
     rank_odds.add_argument("--max-bankroll-fraction", type=float, default=0.02)
     rank_odds.add_argument("--min-edge", type=float, default=0.02)
     rank_odds.add_argument("--min-expected-roi", type=float, default=0.0)
+
+    historical_odds = subparsers.add_parser("historical-odds-backtest", help="Backtest value bets against historical sportsbook odds")
+    historical_odds.add_argument("--predictions", default="reports/historical_predictions.csv", help="Historical predictions with actual_winner or target_fighter_a_win")
+    historical_odds.add_argument("--odds-board", default="data/historical_odds_board.csv", help="Historical odds board CSV")
+    historical_odds.add_argument("--output", default="reports/historical_odds_backtest.csv", help="Fight-line backtest CSV")
+    historical_odds.add_argument("--summary-output", default="reports/historical_odds_strategy_summary.csv", help="Strategy summary CSV")
+    historical_odds.add_argument("--workbook-output", default="reports/historical_odds_backtest.xlsx", help="Excel workbook output")
+    historical_odds.add_argument("--bankroll", type=float, default=1000.0)
+    historical_odds.add_argument("--flat-stake", type=float, default=10.0)
+    historical_odds.add_argument("--max-confidence-stake", type=float, default=100.0)
+    historical_odds.add_argument("--kelly-multiplier", type=float, default=0.25)
+    historical_odds.add_argument("--max-bankroll-fraction", type=float, default=0.02)
+    historical_odds.add_argument("--min-edge", type=float, default=0.02)
+    historical_odds.add_argument("--min-expected-roi", type=float, default=0.0)
 
     betting_report = subparsers.add_parser("betting-report", help="Score fights and generate a ranked odds report")
     betting_report.add_argument("--raw-dir", default="data/raw", help="Directory containing raw UFC history tables")
@@ -109,6 +138,16 @@ def main(argv: list[str] | None = None) -> None:
         run_train(Path(args.features), Path(args.model_path), Path(args.report))
     elif args.command == "evaluate":
         run_evaluate(Path(args.features), Path(args.model_path), Path(args.report), Path(args.odds) if args.odds else None)
+    elif args.command == "compare-models":
+        run_compare_models(Path(args.features), Path(args.output), holdout_fraction=args.holdout_fraction)
+    elif args.command == "calibration-report":
+        run_calibration_report(
+            Path(args.features),
+            Path(args.model_path),
+            Path(args.output),
+            Path(args.report),
+            bins=args.bins,
+        )
     elif args.command == "predict":
         run_predict(Path(args.raw_dir), Path(args.model_path), Path(args.input), Path(args.output))
     elif args.command == "fetch-odds":
@@ -132,6 +171,21 @@ def main(argv: list[str] | None = None) -> None:
             Path(args.odds_board),
             Path(args.output),
             bankroll=args.bankroll,
+            kelly_multiplier=args.kelly_multiplier,
+            max_bankroll_fraction=args.max_bankroll_fraction,
+            min_edge=args.min_edge,
+            min_expected_roi=args.min_expected_roi,
+        )
+    elif args.command == "historical-odds-backtest":
+        run_historical_odds_backtest(
+            predictions_path=Path(args.predictions),
+            odds_board_path=Path(args.odds_board),
+            output_path=Path(args.output),
+            summary_output_path=Path(args.summary_output),
+            workbook_output_path=Path(args.workbook_output) if args.workbook_output else None,
+            bankroll=args.bankroll,
+            flat_stake=args.flat_stake,
+            max_confidence_stake=args.max_confidence_stake,
             kelly_multiplier=args.kelly_multiplier,
             max_bankroll_fraction=args.max_bankroll_fraction,
             min_edge=args.min_edge,
@@ -241,6 +295,26 @@ def run_evaluate(features_path: Path, model_path: Path, report_path: Path, odds_
         report["market_odds_baseline"] = _market_odds_baseline(features, read_csv(odds_path))
     write_json(report, report_path)
     print(f"Wrote evaluation report to {report_path}")
+
+
+def run_compare_models(features_path: Path, output_path: Path, holdout_fraction: float) -> None:
+    comparison = compare_model_families(read_csv(features_path), holdout_fraction=holdout_fraction)
+    write_csv(comparison, output_path)
+    best = comparison.iloc[0]["model"] if not comparison.empty else "none"
+    print(f"Wrote model comparison to {output_path}; best by log loss: {best}")
+
+
+def run_calibration_report(features_path: Path, model_path: Path, output_path: Path, report_path: Path, bins: int) -> None:
+    features = read_csv(features_path).sort_values(["event_date", "fight_id"]).reset_index(drop=True)
+    bundle = load_model(model_path)
+    probabilities = bundle.predict_proba(features)
+    targets = features["target_fighter_a_win"].astype(int)
+    table = calibration_table(targets, probabilities, bins=bins)
+    summary = calibration_summary(targets, probabilities, bins=bins)
+    write_csv(table, output_path)
+    write_json(summary, report_path)
+    print(f"Wrote calibration table to {output_path}")
+    print(f"Wrote calibration summary to {report_path}")
 
 
 def run_predict(raw_dir: Path, model_path: Path, input_path: Path, output_path: Path) -> None:
@@ -364,6 +438,42 @@ def run_rank_odds(
     write_csv(value_bets, output_path)
     bet_count = int((value_bets["decision"] == "bet").sum()) if not value_bets.empty else 0
     print(f"Wrote {len(value_bets)} ranked odds rows to {output_path} with {bet_count} value candidates")
+
+
+def run_historical_odds_backtest(
+    predictions_path: Path,
+    odds_board_path: Path,
+    output_path: Path,
+    summary_output_path: Path,
+    workbook_output_path: Path | None,
+    bankroll: float,
+    flat_stake: float,
+    max_confidence_stake: float,
+    kelly_multiplier: float,
+    max_bankroll_fraction: float,
+    min_edge: float,
+    min_expected_roi: float,
+) -> None:
+    backtest, summary = backtest_historical_odds(
+        read_csv(predictions_path),
+        read_csv(odds_board_path),
+        bankroll=bankroll,
+        flat_stake=flat_stake,
+        max_confidence_stake=max_confidence_stake,
+        kelly_multiplier=kelly_multiplier,
+        max_bankroll_fraction=max_bankroll_fraction,
+        min_edge=min_edge,
+        min_expected_roi=min_expected_roi,
+    )
+    write_csv(backtest, output_path)
+    write_csv(summary, summary_output_path)
+    if workbook_output_path is not None:
+        write_historical_odds_workbook(workbook_output_path, backtest, summary)
+    bet_count = int(backtest["bet_placed"].sum()) if not backtest.empty else 0
+    print(f"Wrote {len(backtest)} historical odds rows to {output_path} with {bet_count} placed bets")
+    print(f"Wrote strategy summary to {summary_output_path}")
+    if workbook_output_path is not None:
+        print(f"Wrote historical odds workbook to {workbook_output_path}")
 
 
 def run_betting_report(

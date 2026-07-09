@@ -34,6 +34,9 @@ dependencies = [
 dev = [
   "pytest>=8",
 ]
+dashboard = [
+  "streamlit>=1.36",
+]
 
 [project.scripts]
 ufc-predict = "ufc_predictor.cli:main"

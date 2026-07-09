@@ -28,6 +28,7 @@ The model uses rolling pre-fight features only:
 - Grappling: takedowns, accuracy, defense, absorbed takedowns
 - Control: control time for/against and differentials
 - Stamina/fade proxies: round 3+ and round 4-5 strike, takedown, and control performance
+- Optional context hooks: short notice, weight misses, camp changes, disclosed injuries, camps, altitude, and travel distance when supplied as pre-fight data
 
 ## Evaluation
 
@@ -40,13 +41,15 @@ Latest local benchmark:
 - ROC AUC: 0.6695
 - Holdout rows: 1,709
 
+Additional evaluation tools include model-family comparison, calibration bucket reports, and historical sportsbook-odds bankroll replay when real historical odds are supplied.
+
 ## Limitations
 
 The model does not currently include:
 
-- Betting odds or market movement
-- Live sportsbook feeds
-- Injury/camp/weight-cut/short-notice context
+- Bundled historical sportsbook closing odds
+- Automatic market-movement features
+- Automatic injury/camp/weight-cut/short-notice feeds
 - Rankings or media scorecards
 - News, interviews, or qualitative scouting
 - Non-UFC fight history unless provided in compatible raw tables
