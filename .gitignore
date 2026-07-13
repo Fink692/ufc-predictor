@@ -5,5 +5,7 @@ __pycache__/
 
 data/processed/
 data/raw/
+data/*.csv
+data/*.xlsx
 models/
 reports/

@@ -417,8 +417,7 @@ class FeatureBuilder:
                     str(winner_id) == str(fight["fighter_a_id"]),
                 )
 
-        fighters = fighters.copy()
-        fighters["normalized_name"] = fighters["fighter_name"].map(normalize_name)
+        fighters = _deduplicate_fighters_by_normalized_name(fighters)
         fighter_by_name = fighters.set_index("normalized_name").to_dict("index")
         rows: list[dict[str, object]] = []
         for fight in _prepare_upcoming(upcoming_fights).to_dict("records"):
@@ -574,6 +573,16 @@ def _prepare_upcoming(upcoming: pd.DataFrame) -> pd.DataFrame:
     prepared["scheduled_rounds"] = pd.to_numeric(prepared["scheduled_rounds"], errors="coerce").fillna(3)
     prepared["title_fight"] = prepared["title_fight"].map(_parse_bool)
     return prepared
+
+
+def _deduplicate_fighters_by_normalized_name(fighters: pd.DataFrame) -> pd.DataFrame:
+    deduped = fighters.copy()
+    deduped["normalized_name"] = deduped["fighter_name"].map(normalize_name)
+    quality_columns = ["fighter_dob", "fighter_height_cm", "fighter_reach_cm", "fighter_weight_lbs", "fighter_stance"]
+    available_quality_columns = [column for column in quality_columns if column in deduped.columns]
+    deduped["_profile_quality"] = deduped[available_quality_columns].notna().sum(axis=1)
+    deduped = deduped.sort_values(["normalized_name", "_profile_quality"]).drop_duplicates("normalized_name", keep="last")
+    return deduped.drop(columns=["_profile_quality"])
 
 
 def _stats_lookup(fight_stats: pd.DataFrame) -> dict[tuple[str, str], dict[str, float]]:
