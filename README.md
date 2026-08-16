@@ -68,9 +68,27 @@ flowchart LR
 
 ## Quick Start
 
-Install the package in editable mode, then use `ufc-predict --help` to inspect the available commands.
+Requires Python 3.11 or newer. Create and activate a virtual environment, then install the package in editable mode.
+
+```bash
+python -m venv .venv
+```
+
+On macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+On Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the package and inspect the available commands:
+
+```bash
 python -m pip install -e ".[dev]"
 ufc-predict --help
 ```
