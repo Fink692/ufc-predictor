@@ -7,6 +7,17 @@ This guide keeps the runnable commands outside the front-page README.
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
+
+On macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+On Windows PowerShell, use the activation command above. Then install the package:
+
+```bash
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
