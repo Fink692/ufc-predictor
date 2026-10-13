@@ -1,16 +1,10 @@
 # UFC Predictor
 
-[![tests](https://github.com/Fink692/ufc-predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/Fink692/ufc-predictor/actions/workflows/tests.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+Historical fight-outcome modeling with rolling pre-fight features, chronological evaluation, probability calibration, odds comparison, and reproducible reports.
 
-Leakage-safe UFC fight winner modeling, odds comparison, and report generation for reproducible MMA analytics.
+The pipeline builds fighter profiles from information available before each bout, trains models, scores upcoming fights, and exports CSV, Markdown, and Excel outputs. The recorded benchmark is historical; the repository does not establish live betting returns.
 
-The project trains on historical UFCStats-style data using only information that would have been available before each bout. It builds rolling fighter profiles, evaluates models chronologically, scores upcoming fights, compares model probabilities to sportsbook moneylines, and exports professional CSV, Markdown, and Excel reports.
-
-> Analytics only. This is not betting advice.
-
-![UFC Predictor report preview](docs/assets/report-preview.svg)
+![Example report](docs/assets/report-preview.svg)
 
 ## What It Does
 
@@ -20,7 +14,7 @@ The project trains on historical UFCStats-style data using only information that
 - Ranks sportsbook lines by implied probability, model edge, expected ROI, conservative Kelly sizing, payout, loss exposure, and risk label.
 - Backtests historical odds files with conservative Kelly, flat-stake, and confidence-stake bankroll simulations.
 - Compares model families and reports calibration error so probability quality is visible, not just accuracy.
-- Produces shareable betting and backtest workbooks with tables, charts, and fight-level rows.
+- Produces betting and backtest workbooks with tables, charts, and fight-level rows.
 
 ## Benchmark Snapshot
 
